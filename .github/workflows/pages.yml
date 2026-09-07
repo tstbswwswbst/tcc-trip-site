@@ -26,6 +26,7 @@ jobs:
         run: |
           mkdir public
           cp website/template.html public/index.html
+          cp -R examples public/examples
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

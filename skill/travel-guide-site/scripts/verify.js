@@ -70,6 +70,12 @@ if (data) {
     if (!c.color) err("cities[" + i + "].color 缺失（景点标签页与图例依赖它）")
   })
 
+  /* 出发地混入 cities 提醒（WARN 不阻断：确有"在出发地玩半天再走"的合法行程） */
+  if (data.meta && data.meta.origin && Array.isArray(data.cities)) {
+    var hit = data.cities.find(function (c) { return c.name === data.meta.origin })
+    if (hit) warn("cities 含出发地 '" + hit.name + "'：若用户明示要在出发地游玩则属正常设计；常规行程出发地只放 meta.origin 与 transportRoutes/transportLegs 的 from，否则路线 chips 会重复（如 北京→北京→大同）且该城景点标签页空白")
+  }
+
   /* 坐标中国范围校验（可捕获经纬度颠倒 / 位数错误 / 漏小数点） */
   function checkCoord(lat, lng, where) {
     if (typeof lat !== "number" || typeof lng !== "number") { err(where + ": lat/lng 不是数字"); return }

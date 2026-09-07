@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a2e">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+<title>旅行攻略 · 高德实景交互地图</title>
+<meta name="description" content="旅行攻略 — 交互式实景地图，每日行程规划，一键高德导航">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Noto+Serif+SC:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+<style>
+:root {
+  --ink:#1a1a2e; --ink-light:#2d2d44;
+  --water:#2c8c99; --water-light:#5dbfc7; --water-dark:#1a6068;
+  --jade:#4a7c59; --jade-light:#7ba88a;
+  --vermilion:#c44536; --vermilion-light:#e07856;
+  --gold:#d4a574;
+  --paper:#f7f3ee; --paper-dark:#ebe5db; --paper-darker:#d9d0c4;
+  --text:#2a2a3a; --text-light:#6a6a7a;
+  --white:#fff;
+  --shadow:0 2px 20px rgba(0,0,0,.08);
+  --shadow-lg:0 8px 40px rgba(0,0,0,.12);
+  --radius:12px; --radius-lg:20px;
+  --transition:all .3s cubic-bezier(.4,0,.2,1);
+  --font:'Noto Sans SC',-apple-system,BlinkMacSystemFont,sans-serif;
+  --serif:'Noto Serif SC',serif;
+  /* 城市专属色由 TRIP_DATA.cities[].color 在运行时内联注入，无需在此定义 */
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--paper);color:var(--text);line-height:1.7;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+a,button{-webkit-tap-highlight-color:transparent}
+ul{list-style:none}
+.section{padding:80px 24px;max-width:1200px;margin:0 auto}
+.section-header{text-align:center;margin-bottom:48px}
+.section-num{display:inline-block;font-size:.75rem;font-weight:700;letter-spacing:.2em;color:var(--water);margin-bottom:8px;text-transform:uppercase}
+.section-header h2{font-family:var(--serif);font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:var(--ink);margin-bottom:12px}
+.section-header p{color:var(--text-light);font-size:1rem;max-width:600px;margin:0 auto}
+.fade-in{opacity:0;transform:translateY(20px);transition:opacity .6s ease,transform .6s ease}
+.fade-in.visible{opacity:1;transform:translateY(0)}
+
+/* ===== NAVBAR ===== */
+.navbar{position:fixed;top:0;left:0;right:0;z-index:2000;background:rgba(247,243,238,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,0,0,.06);transition:var(--transition)}
+.navbar-inner{max-width:1200px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:1.4rem;font-weight:700;color:var(--ink)}
+.logo i{color:var(--water);font-size:1.3rem}
+.nav-links{display:flex;gap:8px;list-style:none}
+.nav-links a{text-decoration:none;color:var(--text);font-size:.9rem;font-weight:500;padding:8px 16px;border-radius:8px;transition:var(--transition)}
+.nav-links a:hover,.nav-links a.active{background:var(--water);color:var(--white)}
+.nav-toggle{display:none;font-size:1.4rem;cursor:pointer;color:var(--ink);background:none;border:none}
+
+/* ===== HERO ===== */
+.hero{position:relative;min-height:100vh;min-height:100svh;display:flex;align-items:center;justify-content:center;overflow:hidden;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 40%,#2c8c99 100%)}
+.hero::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(circle at 20% 30%,rgba(44,140,153,.3) 0%,transparent 50%),radial-gradient(circle at 80% 70%,rgba(196,69,54,.15) 0%,transparent 50%)}
+.hero-mountains{position:absolute;bottom:0;left:0;right:0;height:200px;opacity:.15}
+.hero-content{position:relative;z-index:2;text-align:center;padding:80px 24px 40px;max-width:900px}
+.hero-badge{display:inline-block;background:rgba(255,255,255,.15);padding:6px 20px;border-radius:50px;font-size:.82rem;font-weight:600;margin-bottom:20px;backdrop-filter:blur(4px)}
+.hero-content h1{font-family:var(--serif);font-size:clamp(2.5rem,7vw,5rem);font-weight:900;color:var(--white);letter-spacing:.1em;margin-bottom:16px;text-shadow:0 4px 30px rgba(0,0,0,.3)}
+.hero-content .subtitle{font-size:clamp(1rem,2.5vw,1.3rem);color:rgba(255,255,255,.8);font-weight:300;margin-bottom:8px;letter-spacing:.3em}
+.hero-content .tagline{font-size:clamp(.85rem,1.5vw,1rem);color:var(--water-light);margin-bottom:32px}
+.hero-route{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:32px;font-family:var(--serif);font-size:clamp(.9rem,2vw,1.15rem);color:rgba(255,255,255,.85)}
+.hero-route .arrow{color:var(--water-light);font-size:.9em}
+.hero-route .city-label{padding:4px 16px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:50px;backdrop-filter:blur(8px)}
+.hero-stats{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:28px}
+.hero-stat{background:rgba(255,255,255,.12);padding:14px 24px;border-radius:var(--radius);backdrop-filter:blur(4px);min-width:140px;text-align:center}
+.hero-stat .label{font-size:.72rem;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.hero-stat .value{font-size:1.05rem;font-weight:700;color:var(--white)}
+.hero-cities{display:flex;justify-content:center;gap:20px;flex-wrap:wrap;margin-bottom:40px}
+.hero-city{display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 28px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:var(--radius);backdrop-filter:blur(10px);transition:var(--transition)}
+.hero-city:hover{background:rgba(255,255,255,.15);transform:translateY(-4px)}
+.hero-city i{font-size:1.8rem}
+.hero-city span{font-family:var(--serif);font-size:1.1rem;font-weight:600;color:var(--white)}
+.hero-city small{font-size:.7rem;color:rgba(255,255,255,.5)}
+.hero-cta{display:inline-flex;align-items:center;gap:10px;padding:14px 40px;background:var(--vermilion);color:var(--white);text-decoration:none;border-radius:50px;font-size:1rem;font-weight:500;transition:var(--transition);box-shadow:0 4px 20px rgba(196,69,54,.4)}
+.hero-cta:hover{background:var(--vermilion-light);transform:translateY(-2px);box-shadow:0 6px 30px rgba(196,69,54,.5)}
+.scroll-indicator{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.5);font-size:1.5rem;animation:bounce 2s infinite}
+@keyframes bounce{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-10px)}}
+
+/* ===== MAP SECTION ===== */
+.map-section-wrap{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;margin:0 24px;max-width:1200px;margin-left:auto;margin-right:auto}
+.map-header-bar{padding:20px 32px;background:linear-gradient(135deg,var(--water-dark),var(--water));color:var(--white);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.map-header-bar h3{font-family:var(--serif);font-size:1.3rem;font-weight:600;display:flex;align-items:center;gap:10px}
+.map-layout{display:grid;grid-template-columns:260px 1fr;gap:0}
+.map-sidebar{padding:20px;background:var(--paper);border-right:1px solid var(--paper-dark);overflow-y:auto;max-height:700px}
+.map-sidebar h4{font-size:.85rem;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
+.day-list{display:flex;flex-direction:column;gap:6px;margin-bottom:20px}
+.day-btn{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--paper-darker);border-radius:8px;background:var(--white);cursor:pointer;transition:var(--transition);text-align:left;font-family:var(--font);width:100%}
+.day-btn:hover{border-color:var(--day-color,var(--water));background:var(--day-color,var(--water))08}
+.day-btn.active{border-color:var(--day-color,var(--water));background:var(--day-color,var(--water))12;box-shadow:0 0 0 2px var(--day-color,var(--water))22}
+.day-arrow{flex-shrink:0;width:32px;height:32px;border-radius:8px;background:var(--day-color,var(--water));color:#fff;display:flex;align-items:center;justify-content:center;font-size:1rem}
+.day-info{flex:1;min-width:0}
+.day-info .day-title{font-size:.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.day-info .day-date{font-size:.72rem;color:var(--text-light)}
+.map-toggle-all button{width:100%;padding:10px;border:1px dashed var(--paper-darker);border-radius:8px;background:transparent;color:var(--text-light);font-size:.82rem;font-weight:600;cursor:pointer;transition:var(--transition);font-family:var(--font)}
+.map-toggle-all button:hover{border-color:var(--water);color:var(--water);background:var(--water)08}
+.focus-group{margin-top:20px}
+.focus-btn{display:block;width:100%;padding:10px 12px;margin-bottom:6px;border:1px solid var(--paper-darker);border-radius:8px;background:var(--white);color:var(--text);font-size:.82rem;font-weight:500;cursor:pointer;transition:var(--transition);text-align:left;font-family:var(--font)}
+.focus-btn:hover{border-color:var(--water);color:var(--water);background:var(--water)08}
+.food-toggle-btn{width:100%;padding:10px 12px;border:2px solid var(--paper-darker);border-radius:8px;background:var(--white);color:var(--text-light);font-size:.85rem;font-weight:600;cursor:pointer;transition:var(--transition);font-family:var(--font);margin-top:20px}
+.food-toggle-btn:hover{border-color:var(--vermilion);color:var(--vermilion)}
+.food-toggle-btn.active{background:var(--vermilion);border-color:var(--vermilion);color:#fff}
+.leaflet-map-container{width:100%;height:700px;position:relative;z-index:1}
+.map-legend-bar{display:flex;gap:20px;padding:14px 24px;background:var(--paper);flex-wrap:wrap;justify-content:center;align-items:center}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--text)}
+.legend-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--white);box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.legend-dot.station{border-radius:3px;background:var(--white);border:2px solid #8d8d99}
+.legend-dot.food{background:var(--vermilion);border-radius:50%}
+@media(max-width:900px){.map-layout{grid-template-columns:1fr}.leaflet-map-container{height:420px}.map-sidebar{max-height:280px;border-right:none;border-bottom:1px solid var(--paper-dark);padding:14px}.day-btn{padding:8px 10px;gap:8px}}
+
+/* ===== TEAM INFO + HSR ===== */
+.team-section{background:var(--paper-dark)}
+.team-route-flow{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:40px;font-family:var(--serif);font-size:1.1rem}
+.team-route-flow .city-chip{padding:8px 20px;border-radius:50px;font-weight:600}
+.team-route-flow .city-chip.origin-chip{background:var(--ink)15;color:var(--ink)}
+.team-route-flow .arrow-icon{color:var(--text-light)}
+.hsr-table-wrap{overflow-x:auto;border-radius:var(--radius);box-shadow:var(--shadow);background:var(--white);margin-bottom:24px}
+.hsr-table{width:100%;border-collapse:collapse;font-size:.9rem}
+.hsr-table th{background:var(--water);color:#fff;padding:12px 16px;text-align:left;font-weight:600;font-size:.85rem;white-space:nowrap}
+.hsr-table td{padding:12px 16px;border-bottom:1px solid var(--paper-dark)}
+.hsr-table tr:last-child td{border-bottom:none}
+.hsr-table tr:hover td{background:var(--water)06}
+.hsr-code{font-weight:700;color:var(--water);font-family:'Courier New',monospace}
+.hsr-price{font-weight:700;color:var(--vermilion)}
+.hsr-recommend{padding:12px 16px;background:var(--water)0a;border:1px solid var(--water)22;border-radius:8px;font-size:.88rem;color:var(--water);font-weight:600}
+.hsr-return-box{padding:16px;background:var(--white);border:1px solid var(--paper-dark);border-radius:var(--radius)}
+.hsr-return-box h3{font-size:.95rem;font-weight:700;margin-bottom:8px;color:var(--jade)}
+.hsr-return-box p{font-size:.88rem;color:var(--text-light)}
+
+/* Transport 4-block grid */
+.transport-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+@media(max-width:1024px){.transport-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:768px){.transport-grid{grid-template-columns:1fr}}
+.transport-block{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;border-top:4px solid var(--water)}
+.transport-block.return-block{border-top-color:var(--gold)}
+.tb-header{padding:12px 16px;background:var(--paper)}
+.tb-header h3{font-size:.85rem;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px}
+.tb-header .tb-route{font-size:.78rem;color:var(--text-light);margin-top:2px}
+.tb-body{padding:12px 16px}
+.tb-info{font-size:.82rem;color:var(--text);line-height:1.5;margin-bottom:8px}
+.tb-options{display:flex;flex-direction:column;gap:8px}
+.tb-option{padding:8px 10px;border:1px solid var(--paper-dark);border-radius:8px;background:var(--paper)50}
+.tb-option .opt-header{display:flex;align-items:center;gap:6px;font-size:.8rem;font-weight:700;color:var(--ink)}
+.tb-option .opt-cost{font-size:.78rem;font-weight:700;color:var(--vermilion)}
+.tb-option .opt-detail{font-size:.72rem;color:var(--text-light);margin-top:2px;line-height:1.4}
+.tb-pending{padding:16px;text-align:center;color:var(--text-light);font-size:.85rem;font-style:italic}
+
+/* ===== CITIES ===== */
+.cities-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.city-card{background:var(--white);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);transition:var(--transition);cursor:pointer}
+.city-card:hover{transform:translateY(-8px);box-shadow:var(--shadow-lg)}
+.city-card-banner{height:6px}
+.city-card-body{padding:24px}
+.city-name{font-family:var(--serif);font-size:1.6rem;font-weight:700;margin-bottom:4px}
+.city-en{font-size:.78rem;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.city-tagline{font-size:.9rem;font-weight:600;margin-bottom:8px}
+.city-desc{font-size:.85rem;color:var(--text-light);line-height:1.6;margin-bottom:12px}
+.city-days{display:flex;flex-wrap:wrap;gap:6px}
+.city-day-tag{font-size:.72rem;font-weight:600;padding:3px 10px;border-radius:50px}
+
+/* ===== ATTRACTIONS TABS ===== */
+.city-tabs{display:flex;gap:0;margin-bottom:32px;background:var(--white);border-radius:var(--radius);padding:6px;box-shadow:var(--shadow)}
+.city-tab{flex:1;padding:14px 20px;text-align:center;border:none;background:transparent;color:var(--text-light);font-size:.95rem;font-weight:500;cursor:pointer;border-radius:8px;transition:var(--transition);font-family:var(--font)}
+.city-tab:hover{color:var(--ink)}
+.city-tab.active{background:var(--tab-color,var(--water));color:#fff}
+.city-detail{display:none}
+.city-detail.active{display:block;animation:fadeIn .5s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.attractions-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.attraction-card{background:var(--white);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);transition:var(--transition);border-left:4px solid transparent}
+.attraction-card:hover{transform:translateX(4px);box-shadow:var(--shadow-lg)}
+.att-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.att-header h4{font-family:var(--serif);font-size:1.2rem;font-weight:600;color:var(--ink)}
+.att-rating{display:flex;align-items:center;gap:4px;font-size:.85rem;color:var(--gold)}
+.attraction-card p{font-size:.88rem;color:var(--text-light);margin-bottom:12px}
+.att-info{display:flex;flex-wrap:wrap;gap:12px;font-size:.78rem}
+.att-info span{display:flex;align-items:center;gap:4px;color:var(--text-light)}
+.att-info i{color:var(--water)}
+.att-nav{display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:8px 16px;border-radius:50px;background:#00b96b;color:#fff;font-size:.78rem;font-weight:700;text-decoration:none;box-shadow:0 2px 8px rgba(0,185,107,.35);transition:var(--transition)}
+.att-nav:hover{background:#009e5c;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,185,107,.45)}
+.att-nav i{font-size:.85rem}
+
+/* ===== ITINERARY (2×4 GRID) ===== */
+.itinerary-track{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;max-width:1200px;margin:0 auto}
+.day-row{position:relative;z-index:1}
+.day-card-h{background:var(--white);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:var(--transition);width:100%;height:100%;display:flex;flex-direction:column}
+.day-card-h:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg)}
+.day-card-h .dc-header{display:flex;align-items:center;gap:10px;padding:14px 16px;color:#fff}
+.day-card-h .dc-badge{width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.88rem;flex-shrink:0}
+.day-card-h .dc-title{font-size:.9rem;font-weight:700;line-height:1.3}
+.day-card-h .dc-date{font-size:.72rem;opacity:.85}
+.day-card-h .dc-body{padding:14px 16px;flex:1;display:flex;flex-direction:column}
+.day-card-h .dc-summary{font-size:.8rem;color:var(--text-light);line-height:1.5;margin-bottom:8px}
+.dc-highlights{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px}
+.dc-highlight{font-size:.65rem;font-weight:600;padding:2px 6px;border-radius:50px;background:var(--water)0d;color:var(--water)}
+.dc-budget-row{display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--paper-dark);margin-top:auto}
+.dc-budget-label{font-size:.72rem;color:var(--text-light)}
+.dc-budget-value{font-size:.82rem;font-weight:700;color:var(--vermilion)}
+.dc-view-map{font-size:.75rem;color:var(--water);font-weight:600;margin-top:6px}
+@media(max-width:1024px){.itinerary-track{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:768px){.itinerary-track{grid-template-columns:1fr}}
+
+/* ===== TIMELINE MODAL ===== */
+.timeline-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:3000;display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:opacity .3s,visibility .3s;padding:20px}
+.timeline-overlay.show{opacity:1;visibility:visible}
+.timeline-modal{background:var(--white);border-radius:var(--radius-lg);max-width:540px;width:100%;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);transform:scale(.95);transition:transform .3s}
+.timeline-overlay.show .timeline-modal{transform:scale(1)}
+.timeline-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;color:#fff}
+.timeline-modal-header h3{font-family:var(--serif);font-size:1.1rem;font-weight:700}
+.timeline-modal-close{background:none;border:none;color:#fff;font-size:1.5rem;cursor:pointer;line-height:1;opacity:.8}
+.timeline-modal-close:hover{opacity:1}
+.timeline-modal-body{padding:20px;overflow-y:auto}
+.tl-item{display:flex;gap:14px;padding:10px 0;border-bottom:1px solid var(--paper-dark)}
+.tl-item:last-of-type{border-bottom:none}
+.tl-item .time{flex-shrink:0;width:70px;font-size:.82rem;font-weight:700;color:var(--water)}
+.tl-item .activity{font-size:.85rem;color:var(--text)}
+.tl-tips{padding:12px 14px;border-left:3px solid;border-radius:8px;font-size:.82rem;margin:16px 0}
+.tl-budget{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.tl-budget-item{text-align:center;padding:8px;background:var(--paper);border-radius:8px}
+.tl-budget-item .label{font-size:.7rem;color:var(--text-light);margin-bottom:2px}
+.tl-budget-item .value{font-size:.88rem;font-weight:700;color:var(--ink)}
+.tl-locs{margin-top:18px}
+.tl-locs-title{font-size:.88rem;font-weight:700;color:var(--ink);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.tl-loc-list{display:flex;flex-direction:column;gap:6px}
+.tl-loc{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--paper-dark);border-radius:10px;background:rgba(247,243,238,.5);text-decoration:none;transition:var(--transition)}
+.tl-loc:hover{border-color:#00b96b;background:rgba(0,185,107,.06)}
+.tl-loc-name{font-size:.85rem;font-weight:700;color:var(--ink);white-space:nowrap}
+.tl-loc-desc{flex:1;min-width:0;font-size:.75rem;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-loc-btn{flex-shrink:0;display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:50px;background:#00b96b;color:#fff;font-size:.72rem;font-weight:700}
+
+/* ===== TIPS ===== */
+.tips-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:32px}
+.tip-card{background:var(--white);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.tip-card h3{font-size:.95rem;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.tip-card .icon{font-size:1.1rem}
+.tip-card ul li{font-size:.82rem;color:var(--text-light);padding:4px 0;padding-left:16px;position:relative}
+.tip-card ul li::before{content:'•';position:absolute;left:4px;color:var(--water)}
+.weather-card{background:linear-gradient(135deg,#ff6b35,#f7931e);color:#fff}
+.weather-card h3{color:#fff}
+.weather-card ul li{color:rgba(255,255,255,.9)}
+.weather-card ul li::before{color:rgba(255,255,255,.6)}
+.weather-stats{display:flex;gap:16px;margin-bottom:12px}
+.weather-stat .label{font-size:.72rem;opacity:.8}
+.weather-stat .value{font-size:1.2rem;font-weight:700}
+.rainy-table-wrap{overflow-x:auto;border-radius:var(--radius);background:var(--white);box-shadow:var(--shadow);margin-bottom:32px}
+.rainy-table{width:100%;border-collapse:collapse;font-size:.88rem}
+.rainy-table th{background:var(--jade);color:#fff;padding:10px 14px;text-align:left;font-size:.82rem}
+.rainy-table td{padding:10px 14px;border-bottom:1px solid var(--paper-dark)}
+.rainy-table .arrow{text-align:center;color:var(--water);font-weight:700}
+.food-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.food-card{background:var(--white);border-radius:var(--radius);padding:20px;border-top:4px solid var(--city-color,var(--water));box-shadow:var(--shadow)}
+.food-card h3{font-size:1.05rem;font-weight:700;margin-bottom:12px}
+.food-tags{display:flex;flex-wrap:wrap;gap:6px}
+.food-tag{font-size:.8rem;font-weight:500;padding:4px 12px;border-radius:50px;background:var(--city-color,var(--water))11;color:var(--city-color,var(--water))}
+
+/* ===== BUDGET ===== */
+.budget-table-wrap{overflow-x:auto;border-radius:var(--radius);box-shadow:var(--shadow);background:var(--paper);margin-bottom:24px}
+.budget-table{width:100%;border-collapse:collapse;font-size:.88rem}
+.budget-table th{background:var(--water);color:#fff;padding:12px 14px;text-align:left;font-weight:600;font-size:.82rem}
+.budget-table td{padding:10px 14px;border-bottom:1px solid var(--paper-darker)}
+.budget-range{font-weight:600;color:var(--vermilion)}
+.budget-bar-cell{width:120px}
+.budget-bar{height:8px;background:var(--paper-darker);border-radius:4px;overflow:hidden}
+.budget-bar-fill{height:100%;background:linear-gradient(90deg,var(--water),var(--vermilion));border-radius:4px;transition:width .6s ease}
+.budget-total{display:flex;justify-content:space-between;align-items:center;margin-top:20px;padding:20px 24px;background:linear-gradient(135deg,var(--water),var(--jade));border-radius:var(--radius);color:#fff}
+.budget-total .label{font-size:.9rem;opacity:.9}
+.budget-total .value{font-size:1.4rem;font-weight:800}
+
+/* ===== FOOTER ===== */
+footer{background:var(--ink);color:rgba(255,255,255,.6);padding:48px 24px 24px;text-align:center}
+footer .footer-content{max-width:1200px;margin:0 auto}
+footer .footer-logo{font-family:var(--serif);font-size:1.5rem;font-weight:700;color:var(--white);margin-bottom:12px}
+footer p{font-size:.85rem;margin-bottom:8px}
+footer .footer-divider{width:60px;height:2px;background:var(--water);margin:24px auto}
+footer .copyright{font-size:.78rem;opacity:.5}
+
+/* ===== LEAFLET CUSTOM ===== */
+.leaflet-popup-content-wrapper{border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:0;overflow:hidden;border:1px solid var(--paper-dark)}
+.leaflet-popup-content{margin:0!important;width:auto!important}
+.leaflet-popup-close-button{z-index:10;color:#fff!important;font-size:1.2rem!important;padding:6px 8px!important}
+.l-popup{min-width:220px;max-width:280px}
+.l-popup-header{color:#fff;padding:10px 14px;font-size:.95rem;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.l-pop-emoji{font-size:1.1rem;line-height:1}
+.l-pop-type{font-size:.65rem;font-weight:600;padding:2px 8px;border-radius:50px;margin-left:auto;background:rgba(255,255,255,.2);color:#fff;white-space:nowrap}
+.l-popup-body{padding:12px 14px}
+.l-popup-body p{font-size:.82rem;color:var(--text-light);line-height:1.5}
+.l-pop-ticket{font-size:.85rem;font-weight:700;margin-bottom:4px}
+.l-pop-hours{font-size:.78rem;color:var(--text-light);margin-bottom:6px}
+.l-pop-dishes-label{font-size:.68rem;font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px}
+.l-pop-dishes{display:flex;flex-wrap:wrap;gap:4px}
+.l-pop-dish{font-size:.72rem;font-weight:500;padding:2px 8px;border-radius:50px;background:var(--vermilion)11;color:var(--vermilion)}
+.l-pop-nav{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:10px;padding:8px 10px;border-radius:8px;background:#00b96b;color:#fff;font-size:.8rem;font-weight:700;text-decoration:none;transition:var(--transition)}
+.l-pop-nav:hover{background:#009e5c}
+.l-pop-nav i{font-size:.85rem}
+.l-city-label{z-index:5!important}
+.l-city-label>div{white-space:nowrap}
+.l-route-label{background:rgba(255,255,255,.94)!important;border:1px solid var(--paper-dark)!important;border-radius:50px!important;padding:2px 10px!important;font-size:.68rem!important;font-weight:600!important;color:var(--text-light)!important;box-shadow:0 2px 8px rgba(0,0,0,.1)!important;white-space:nowrap}
+.l-route-label::before{display:none!important}
+.leaflet-bar a{background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-color:var(--paper-dark);color:var(--ink);font-weight:700;transition:all .2s}
+.leaflet-bar a:hover{background:var(--water);color:#fff;border-color:var(--water)}
+
+/* Attraction markers — water-drop */
+.l-att-icon{z-index:7!important}
+.l-att-marker{width:32px;height:32px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35);border:2px solid #fff;transition:transform .2s}
+.l-att-marker:hover{transform:rotate(-45deg) scale(1.15)}
+.l-att-marker span{transform:rotate(45deg);font-size:1rem;line-height:1}
+
+/* Station markers — square */
+.l-station-icon{z-index:7!important}
+.l-station-marker{width:30px;height:30px;border-radius:5px;background:#fff;border:3px solid;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.l-station-marker span{font-size:.9rem;line-height:1}
+
+/* Food markers — orange circle */
+.l-food-icon{z-index:6!important}
+.l-food-marker{width:26px;height:26px;border-radius:50%;background:var(--vermilion);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(196,69,54,.45);border:2px solid #fff;transition:transform .2s}
+.l-food-marker:hover{transform:scale(1.2)}
+.l-food-marker span{font-size:.8rem;line-height:1}
+
+/* Day route markers — arrows */
+.l-dayroute-icon{z-index:6!important}
+.l-dayroute-marker{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35);border:2px solid #fff}
+.l-dayroute-marker i{color:#fff;font-size:.8rem}
+
+/* Hotel marker — five-pointed star */
+.l-hotel-icon{z-index:8!important}
+.l-hotel-marker{width:36px;height:36px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 2px 6px rgba(0,0,0,.4))}
+.l-hotel-star{width:36px;height:36px;background:gold;clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);display:flex;align-items:center;justify-content:center}
+.l-hotel-star span{font-size:1rem;line-height:1;transform:translateY(-2px)}
+
+/* Pokemon marker — yellow water-drop */
+.l-pokemon-icon{z-index:8!important}
+.l-pokemon-marker{width:32px;height:32px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.35);border:2px solid #fff;background:#ffd700;transition:transform .2s}
+.l-pokemon-marker:hover{transform:rotate(-45deg) scale(1.15)}
+.l-pokemon-marker span{transform:rotate(45deg);font-size:1rem;line-height:1}
+
+/* Route arrow markers */
+.l-arrow-icon{z-index:5!important}
+.l-arrow-marker{width:20px;height:20px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.6rem;font-weight:700;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+
+/* ===== RESPONSIVE ===== */
+/* Mobile nav — collapse below 820px (7 items overflow before that) */
+@media(max-width:820px){
+  .navbar-inner{padding:0 16px}
+  .nav-links{display:none}
+  .nav-toggle{display:flex;align-items:center;justify-content:center;width:44px;height:44px;font-size:1.35rem}
+  .nav-links.open{display:flex;position:absolute;top:calc(100% + 8px);left:12px;right:12px;flex-direction:column;gap:4px;background:var(--white);padding:10px;box-shadow:var(--shadow-lg);border:1px solid var(--paper-dark);border-radius:14px;animation:navDrop .25s ease}
+  .nav-links.open a{padding:12px 14px;font-size:.95rem;border-radius:10px}
+}
+@keyframes navDrop{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:768px){
+  .section{padding:48px 16px;scroll-margin-top:70px}
+  .section-header{margin-bottom:32px}
+  .hero-content{padding:72px 16px 32px}
+  .hero-cities{flex-direction:column}
+  .hero-city{flex-direction:row;padding:12px 20px}
+  .map-section-wrap{margin:0}
+  .map-header-bar{padding:14px 16px}
+  .map-header-bar h3{font-size:1.1rem}
+  .map-legend-bar{gap:10px 16px;padding:12px 14px}
+  .cities-grid{grid-template-columns:1fr}
+  .attractions-grid{grid-template-columns:1fr}
+  .city-tabs{padding:5px}
+  .city-tab{padding:11px 6px;font-size:.88rem}
+  .tl-budget{grid-template-columns:repeat(2,1fr)}
+  .timeline-overlay{padding:12px}
+  .timeline-modal{max-height:88vh}
+  .budget-table,.rainy-table{font-size:.8rem}
+  .budget-table th,.budget-table td,.rainy-table th,.rainy-table td{padding:9px 10px}
+  .l-popup{min-width:200px;max-width:250px}
+}
+@media(max-width:480px){
+  .tl-item{flex-direction:column;gap:2px}
+  .tl-item .time{width:auto}
+  .tl-loc{flex-wrap:wrap;gap:6px 8px}
+  .tl-loc-desc{white-space:normal}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== NAVBAR ===== -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="#hero" class="logo"><i class="fas fa-water" id="navLogoIcon"></i> <span id="navLogoText">旅行攻略</span></a>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#map-section">01 地图</a></li>
+      <li><a href="#team-section">02 出行</a></li>
+      <li><a href="#cities">03 城市</a></li>
+      <li><a href="#attractions">04 景点</a></li>
+      <li><a href="#itinerary">05 行程</a></li>
+      <li><a href="#tips">06 攻略</a></li>
+      <li><a href="#budget">07 预算</a></li>
+    </ul>
+    <button class="nav-toggle" id="navToggle"><i class="fas fa-bars"></i></button>
+  </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<section class="hero" id="hero">
+  <svg class="hero-mountains" viewBox="0 0 1200 200" preserveAspectRatio="none">
+    <path id="heroMountain1" d="M0,200 L0,100 L200,40 L400,80 L600,20 L800,60 L1000,30 L1200,80 L1200,200 Z" fill="#2c8c99"/>
+    <path id="heroMountain2" d="M0,200 L0,140 L150,80 L350,120 L550,60 L750,100 L950,50 L1200,110 L1200,200 Z" fill="#1a6068" opacity="0.6"/>
+    <path id="heroMountain3" d="M0,200 L0,170 L100,120 L300,150 L500,100 L700,140 L900,90 L1100,130 L1200,160 L1200,200 Z" fill="#1a1a2e" opacity="0.4"/>
+  </svg>
+  <div class="hero-content">
+    <span class="hero-badge" id="heroBadge">毕业旅行</span>
+    <h1 id="heroTitle">旅行攻略</h1>
+    <p class="subtitle" id="heroSubtitle">精华路线</p>
+    <p class="tagline" id="heroTagline"></p>
+
+    <div class="hero-route" id="heroRoute"></div>
+
+    <div class="hero-stats" id="heroStats"></div>
+
+    <div class="hero-cities" id="heroCities"></div>
+
+    <a href="#map-section" class="hero-cta"><i class="fas fa-map-location-dot"></i> 查看实景导航地图</a>
+  </div>
+  <div class="scroll-indicator"><i class="fas fa-chevron-down"></i></div>
+</section>
+
+<!-- ===== 01 实景导航地图 ===== -->
+<section class="section" id="map-section" style="padding-top:80px">
+  <div class="section-header">
+    <span class="section-num">01 / 实景导航地图</span>
+    <h2>高德地图实景交互</h2>
+    <p>基于高德地图瓦片，真实街道路网，可放大到街道级别。点击标记查看景点详情，可一键跳转高德地图导航</p>
+  </div>
+  <div class="map-section-wrap">
+    <div class="map-header-bar">
+      <h3><i class="fas fa-map-marked-alt"></i> 景点分布实景图</h3>
+    </div>
+    <div class="map-layout">
+      <div class="map-sidebar">
+        <h4>每日路线</h4>
+        <div class="day-list" id="dayList"></div>
+        <div class="map-toggle-all"><button id="showAllBtn">显示全部路线</button></div>
+        <div class="focus-group">
+          <h4>快捷定位</h4>
+          <div id="focusBtns"></div>
+        </div>
+        <button class="food-toggle-btn" id="lFoodToggle">🍗 美食图层：关</button>
+      </div>
+      <div class="leaflet-map-container" id="leafletMap"></div>
+    </div>
+    <div class="map-legend-bar" id="mapLegend">
+      <div class="legend-item"><div class="legend-dot station"></div>车站</div>
+      <div class="legend-item"><div class="legend-dot food"></div>美食</div>
+      <div class="legend-item"><span style="font-size:1rem">⭐</span> 住宿</div>
+      <div class="legend-item"><i class="fas fa-route" style="color:var(--gold)"></i> 每日路线</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 02 团队信息 + 高铁班次 ===== -->
+<section class="section team-section" id="team-section">
+  <div class="section-header">
+    <span class="section-num">02 / 团队出行信息</span>
+    <h2>行程概览 & 交通信息</h2>
+    <p>出行日期、天数、人数、交通方式及城际交通详情</p>
+  </div>
+
+  <div class="team-route-flow" id="teamRouteFlow"></div>
+
+  <div id="intercityBody" style="margin-top:24px"></div>
+</section>
+
+<!-- ===== 03 三城概览 ===== -->
+<section class="section" id="cities">
+  <div class="section-header">
+    <span class="section-num">03 / 三城概览</span>
+    <h2>目的地一览</h2>
+    <p>江南精华，一步一景</p>
+  </div>
+  <div class="cities-grid" id="citiesGrid"></div>
+</section>
+
+<!-- ===== 04 景点详情 ===== -->
+<section class="section" id="attractions" style="background:var(--paper-dark)">
+  <div class="section-header">
+    <span class="section-num">04 / 景点详情</span>
+    <h2>精选景点攻略</h2>
+    <p>点击标签切换城市，查看详细景点信息，支持一键高德导航</p>
+  </div>
+  <div class="city-tabs" id="cityTabs"></div>
+  <div id="cityDetails"></div>
+</section>
+
+<!-- ===== 05 每日行程 ===== -->
+<section class="section" id="itinerary">
+  <div class="section-header">
+    <span class="section-num">05 / 每日行程</span>
+    <h2>每日行程规划</h2>
+    <p>点击卡片查看详细时间表，可跳转地图查看路线，地点支持一键高德导航</p>
+  </div>
+  <div class="itinerary-track" id="itineraryTrack"></div>
+</section>
+
+<!-- ===== 06 攻略Tips ===== -->
+<section class="section" id="tips" style="background:var(--paper-dark)">
+  <div class="section-header">
+    <span class="section-num">06 / 旅行攻略</span>
+    <h2>实用攻略 & 美食指南</h2>
+    <p>天气预警、必带物品、雨天备选、三城美食推荐</p>
+  </div>
+  <div class="tips-grid" id="tipsGrid"></div>
+  <div class="rainy-table-wrap">
+    <table class="rainy-table">
+      <thead><tr><th>原计划</th><th></th><th>雨天替代方案</th></tr></thead>
+      <tbody id="rainyBody"></tbody>
+    </table>
+  </div>
+  <div class="food-grid" id="foodGrid"></div>
+</section>
+
+<!-- ===== 07 预算分析 ===== -->
+<section class="section" id="budget">
+  <div class="section-header">
+    <span class="section-num">07 / 预算分析</span>
+    <h2>费用预算</h2>
+    <p>人均费用明细，含高铁+大巴交通</p>
+  </div>
+  <div class="budget-table-wrap">
+    <table class="budget-table">
+      <thead><tr><th>项目</th><th>最低</th><th>最高</th><th style="width:120px">占比</th><th>备注</th></tr></thead>
+      <tbody id="budgetBody"></tbody>
+    </table>
+  </div>
+  <div class="budget-total" id="budgetTotal"></div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <div class="footer-content">
+    <div class="footer-logo" id="footerLogo">旅行攻略</div>
+    <p id="footerTagline"></p>
+    <div class="footer-divider"></div>
+    <p class="copyright">攻略信息仅供参考，景点开放时间和票价以官方为准 | 2026</p>
+  </div>
+</footer>
+
+<!-- ===== TIMELINE MODAL ===== -->
+<div class="timeline-overlay" id="timelineOverlay">
+  <div class="timeline-modal" id="timelineModal"></div>
+</div>
+
+<!-- ===== SCRIPTS ===== -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ============================================================
+   TRIP DATA —— 唯一需要修改的数据区
+   ────────────────────────────────────────────────────────────
+   生成新攻略网站时：只替换本对象的内容（从 var TRIP_DATA = { 到结尾 };），
+   页面其余部分（HTML/CSS/JS）完全由本数据驱动，无需改动。
+   数据格式与坐标获取方法见 skill 的 references/data-schema.md
+   ============================================================ */
+var TRIP_DATA = {
+  meta: {
+    title: '江南行旅',            // 网站主标题（导航栏 / Hero / 浏览器标签页）
+    subtitle: '江浙沪 精华路线',   // Hero 副标题
+    badge: '2026 暑期 · 毕业旅行', // Hero 左上角徽章文案
+    tagline: '杭州 · 乌镇 · 苏州 — 一条路线，三重江南', // Hero 标语
+    logoIcon: 'fa-water',        // 导航栏 Logo 图标（Font Awesome 类名）
+    favicon: '🌊',              // 浏览器标签页图标（emoji）
+    dates: '2026.07.20 - 07.27', days: 8, nights: 7, people: 8,
+    transport: '高铁+大巴', origin: '西安', base: '杭州5晚+乌镇1晚+苏州1晚',
+  },
+  /* 主题配色：整站 CSS 变量由此注入。预设色板见 references/design-system.md */
+  theme: {
+    primary: '#2c8c99', primaryLight: '#5dbfc7', primaryDark: '#1a6068',
+    secondary: '#c44536', secondaryLight: '#e07856',
+    accent: '#4a7c59', accentLight: '#7ba88a',
+    ink: '#1a1a2e', inkLight: '#2d2d44',
+    paper: '#f7f3ee', paperDark: '#ebe5db', paperDarker: '#d9d0c4',
+    heroGradient: ['#1a1a2e', '#16213e', '#2c8c99'],   // Hero 渐变（深→主色）
+    mountains: ['#2c8c99', '#1a6068', '#1a1a2e'],      // Hero 底部山峦剪影
+  },
+  cities: [
+    { name: '杭州', en: 'Hangzhou', lat: 30.2741, lng: 120.1551, color: '#2c8c99', icon: 'fa-water', tagline: '西湖 · 灵隐 · 西溪 · 运河', description: '大本营住5晚。西湖经典线、灵隐飞来峰、西溪湿地、运河夜景全覆盖，大巴前往乌镇。', days: [0,1,2,3], nights: '5晚(7.20-7.24)' },
+    { name: '乌镇', en: 'Wuzhen', lat: 30.7487, lng: 120.5430, color: '#c44536', icon: 'fa-bridge', tagline: '西栅水乡 · 桥影夜景', description: '7.24大巴从杭州直达乌镇西栅景区，住1晚，体验水乡夜景。次日大巴前往苏州。', days: [4], nights: '1晚(7.24)' },
+    { name: '苏州', en: 'Suzhou', lat: 31.2989, lng: 120.5853, color: '#4a7c59', icon: 'fa-mountain-sun', tagline: '拙政园 · 虎丘 · 平江路 · 山塘街', description: '7.25大巴从乌镇到苏州，住2晚玩2天。拙政园、虎丘、留园、平江路、山塘街，7.27从苏州高铁返回西安。', days: [5,6,7], nights: '2晚(7.25-7.26)' },
+  ],
+  /* 地图上的城际交通虚线（from/to 用城市名或地点名，坐标优先取 cities / transportLegs） */
+  transportRoutes: [
+    { from: '西安', to: '杭州', mode: '高铁G1896', time: '约7时55分', distance: '约1500km', color: '#1565c0', note: '西安北08:32→杭州东16:27 · ¥730.5' },
+    { from: '杭州', to: '乌镇', mode: '大巴', time: '约1.5小时', distance: '约80km', color: '#e65100', note: '杭州长途汽车客运城站广场→乌镇西栅景区 · ¥29 · 20分钟一趟' },
+    { from: '乌镇', to: '苏州', mode: '大巴', time: '约1.5小时', distance: '约70km', color: '#e65100', note: '乌镇西栅景区→苏州 · ¥55-100 · 20-30分钟一趟 · 巴巴快巴/苏汽直通车' },
+    { from: '苏州', to: '西安', mode: '高铁', time: '约6-7小时', distance: '约1300km', color: '#1565c0', note: '苏州→西安北 · 待确定车次 · 约¥700-850' },
+  ],
+  /* 02 区块的交通卡片（去程 / 城际 / 返程，每个一段，含多种方式） */
+  transportLegs: [
+    {
+      icon: '🚄', title: '去程高铁', route: '西安北 → 杭州东', from: '西安', to: '杭州',
+      fromLat: 34.3728, fromLng: 108.9397, toLat: 30.2911, toLng: 120.2126,
+      options: [
+        { type: '高铁G1896', cost: '¥730.5', detail: '西安北 08:32 → 杭州东 16:27 · 历时7时55分 · 已选定', icon: '🚄' },
+      ],
+    },
+    {
+      icon: '🚌', title: '杭州 → 乌镇', route: '约80km · 大巴约1.5小时', from: '杭州', to: '乌镇',
+      options: [
+        { type: '大巴', cost: '¥29/人', detail: '住宿→杭州城站客运站→大巴到乌镇西栅(1h4min,20分钟一趟)', icon: '🚌' },
+        { type: '打车', cost: '190-230元/车', detail: '不含跨城费、高速费(28-35元) · 88km · 1h13min', icon: '🚕' },
+        { type: '顺风车', cost: '<150元/车', detail: '需提前预约 · 88km · 约1h13min', icon: '🚗' },
+      ],
+    },
+    {
+      icon: '🚌', title: '乌镇 → 苏州', route: '约70km · 大巴约1.5小时', from: '乌镇', to: '苏州',
+      options: [
+        { type: '大巴', cost: '¥55/人', detail: '乌镇西栅站→苏州北广场客运站(20分钟一趟)→住宿(3.2km)', icon: '🚌' },
+        { type: '打车', cost: '190-230元/车', detail: '不含跨城费 · 高速费0-37元 · 72km · 1h25min', icon: '🚕' },
+      ],
+    },
+    {
+      icon: '🚄', title: '返程高铁', route: '苏州 → 西安北', from: '苏州', to: '西安',
+      fromLat: 31.3310, fromLng: 120.6086, toLat: 34.3728, toLng: 108.9397,
+      options: [
+        { type: '高铁', cost: '¥700-850', detail: '约6-7小时 · 建议上午出发车次，下午到西安 · 车次待确定', icon: '🚄' },
+      ],
+    },
+  ],
+  mapSpots: [
+    // 杭州
+    { name: '西湖', city: '杭州', lat: 30.2592, lng: 120.1683, type: 'view', emoji: '🏞️', ticket: '免费', hours: '全天开放', desc: '世界文化遗产，杭州地标。断桥残雪、苏堤春晓、雷峰夕照等西湖十景闻名天下。' },
+    { name: '断桥', city: '杭州', lat: 30.2616, lng: 120.1504, type: 'view', emoji: '🌉', ticket: '免费', hours: '全天', desc: '白堤起点，西湖十景「断桥残雪」所在地，白娘子传说发源地。' },
+    { name: '灵隐寺·飞来峰', city: '杭州', lat: 30.2406, lng: 120.1000, type: 'ticket', emoji: '🛕', ticket: '飞来峰45元 + 灵隐寺30元 = 75元', hours: '07:00-18:15', desc: '杭州最著名佛寺，飞来峰石刻造像为全国重点文保。建议早起避开人潮。' },
+    { name: '西溪湿地', city: '杭州', lat: 30.2720, lng: 120.0720, type: 'ticket', emoji: '🌿', ticket: '80元（船票另计60-100元）', hours: '07:30-17:30', desc: '国家湿地公园，城市中的湿地生态系统。可步行可坐船，精华区约2-3小时。' },
+    { name: '雷峰塔', city: '杭州', lat: 30.2317, lng: 120.1493, type: 'ticket', emoji: '🗼', ticket: '约40元', hours: '08:00-20:00', desc: '西湖标志性建筑，白蛇传传说关联地。外观免费，登塔可俯瞰西湖全景。' },
+    { name: '河坊街', city: '杭州', lat: 30.2470, lng: 120.1700, type: 'food', emoji: '🍡', ticket: '免费', hours: '全天', desc: '南宋御街历史文化街区，小吃、伴手礼集中地。晚上更有氛围。' },
+    { name: '拱宸桥', city: '杭州', lat: 30.3210, lng: 120.1420, type: 'view', emoji: '🌉', ticket: '免费', hours: '全天', desc: '京杭大运河南端标志，世界文化遗产点。桥西有刀剪剑伞扇四大博物馆。' },
+    { name: '小河直街', city: '杭州', lat: 30.3010, lng: 120.1310, type: 'food', emoji: '🏮', ticket: '免费', hours: '全天', desc: '运河支流旁的文艺历史街区，小店、咖啡馆、夜宵，适合晚上逛。' },
+    { name: '龙井村', city: '杭州', lat: 30.2230, lng: 120.1167, type: 'view', emoji: '🍵', ticket: '免费', hours: '全天', desc: '龙井茶原产地，茶村风光。可喝茶拍照，走路少比较舒适。' },
+    { name: '九溪十八涧', city: '杭州', lat: 30.2050, lng: 120.1150, type: 'view', emoji: '💧', ticket: '免费', hours: '全天', desc: '溪水树荫，天然氧吧。只走入口到溪边一段即可，全程较长。' },
+    // 乌镇
+    { name: '乌镇西栅', city: '乌镇', lat: 30.7487, lng: 120.5430, type: 'ticket', emoji: '🏮', ticket: '150元', hours: '09:00-22:00', desc: '江南六大水乡古镇之一，西栅夜景是核心亮点。桥影桨声、水上集市、草木本色染坊。' },
+    { name: '西栅入口', city: '乌镇', lat: 30.7520, lng: 120.5470, type: 'view', emoji: '🚪', ticket: '含西栅门票', hours: '09:00-22:00', desc: '西栅主入口，游客中心在此。进入后沿主河道游览。' },
+    { name: '水上集市', city: '乌镇', lat: 30.7460, lng: 120.5400, type: 'view', emoji: '🛶', ticket: '含西栅门票', hours: '全天', desc: '西栅核心景观区，摇橹船穿梭其间，最经典的水乡画面。' },
+    { name: '草木本色染坊', city: '乌镇', lat: 30.7450, lng: 120.5450, type: 'view', emoji: '🎨', ticket: '含西栅门票', hours: '08:00-17:30', desc: '西栅内著名手工染坊，蓝印花布晾晒场景是打卡热点。' },
+    { name: '乌镇东栅', city: '乌镇', lat: 30.7550, lng: 120.5380, type: 'ticket', emoji: '🏘️', ticket: '110元（东西栅联票190元）', hours: '07:00-18:00', desc: '东栅更原生态，茅盾故居在此。时间紧可只去西栅，时间充裕可联票。' },
+    { name: '茅盾故居', city: '乌镇', lat: 30.7560, lng: 120.5370, type: 'view', emoji: '📚', ticket: '含东栅门票', hours: '08:00-17:00', desc: '文学家茅盾出生地，东栅景区内核心人文景点。' },
+    { name: '乌镇大桥', city: '乌镇', lat: 30.7500, lng: 120.5500, type: 'view', emoji: '🌉', ticket: '免费', hours: '全天', desc: '连接东西栅的通道，桥上可俯瞰水乡全貌。' },
+    // 苏州
+    { name: '拙政园', city: '苏州', lat: 31.3240, lng: 120.6280, type: 'ticket', emoji: '🏡', ticket: '70-80元（学生半价）', hours: '07:30-17:30', desc: '中国四大名园之一，世界文化遗产。苏州园林代表作，暑假人多建议早到或下午去。' },
+    { name: '留园', city: '苏州', lat: 31.3170, lng: 120.5970, type: 'ticket', emoji: '🌳', ticket: '约55元（学生半价）', hours: '07:30-17:00', desc: '中国四大名园之一，以建筑空间精巧著称。比拙政园小但更精致。' },
+    { name: '虎丘', city: '苏州', lat: 31.3220, lng: 120.5720, type: 'ticket', emoji: '🏔️', ticket: '60-80元（学生半价）', hours: '07:30-17:00', desc: '吴中第一名胜，苏州标志性景点。虎丘斜塔有千年历史，苏东坡说「到苏州不游虎丘乃憾事」。' },
+    { name: '平江路', city: '苏州', lat: 31.3160, lng: 120.6280, type: 'view', emoji: '🚣', ticket: '免费', hours: '全天', desc: '千年水巷，小桥流水人家。苏州最完整的历史街区，适合漫步和拍照。' },
+    { name: '山塘街', city: '苏州', lat: 31.3160, lng: 120.6025, type: 'food', emoji: '🍖', ticket: '免费', hours: '全天', desc: '七里山塘，白居易主持修建。夜景很美，晚餐+逛街的好去处。' },
+    // 高铁站
+    { name: '杭州东站', city: '杭州', lat: 30.2911, lng: 120.2126, type: 'station', emoji: '🚄', ticket: '—', hours: '—', desc: '西安高铁G1896到达站，地铁1/4/19号线。去乌镇从长途汽车客运城站广场坐大巴。' },
+    { name: '桐乡站', city: '乌镇', lat: 30.6300, lng: 120.5400, type: 'station', emoji: '🚄', ticket: '—', hours: '—', desc: '去乌镇的高铁站，杭州东→桐乡约25分钟。出站后K282公交或打车约30分钟到乌镇。' },
+    { name: '苏州北站', city: '苏州', lat: 31.4212, lng: 120.6437, type: 'station', emoji: '🚄', ticket: '—', hours: '—', desc: '苏州北部高铁站（相城区·京沪高铁），距苏州站北约10.5公里。' },
+    { name: '张家港站', city: '苏州', lat: 31.8213, lng: 120.6737, type: 'station', emoji: '🚄', ticket: '—', hours: '—', desc: '张家港市高铁站（塘桥镇），沪苏通铁路经停。' },
+    { name: '常熟站', city: '苏州', lat: 31.6548, lng: 120.7506, type: 'station', emoji: '🚄', ticket: '—', hours: '—', desc: '常熟市高铁站（虞山镇），沪苏通铁路经停。' },
+    { name: '苏州南站', city: '苏州', lat: 31.0629, lng: 120.7995, type: 'station', emoji: '🚄', ticket: '—', hours: '—', desc: '苏州南部高铁站（吴江区黎里镇·汾湖），沪苏湖高铁与通苏嘉甬铁路交汇站。' },
+    { name: '太仓站', city: '苏州', lat: 31.5130, lng: 121.2006, type: 'station', emoji: '🚄', ticket: '—', hours: '—', desc: '太仓市高铁站（S339省道南侧），沪苏通铁路经停。' },
+    // 酒店
+    { name: '轻奢大平层', city: '杭州', lat: 30.2070, lng: 120.2100, type: 'hotel', emoji: '⭐', ticket: '¥1060/天', hours: '可住8人', desc: '地址：江斓映象府7号楼（滨江区风情大道565号）。杭州住宿5晚，8人住。' },
+    { name: '夜泊枫桥', city: '乌镇', lat: 30.7520, lng: 120.5410, type: 'hotel', emoji: '⭐', ticket: '—', hours: '住1晚', desc: '地址：乌镇镇环河路211号211室。乌镇住宿1晚。' },
+    { name: '苏韵之家', city: '苏州', lat: 31.3150, lng: 120.6080, type: 'hotel', emoji: '⭐', ticket: '—', hours: '住2晚', desc: '地址：苏州姑苏区皋桥大通花园西门旁。苏州住宿2晚。' },
+    // 汽车站
+    { name: '杭州城站汽车客运站', city: '杭州', lat: 30.2430, lng: 120.1850, type: 'station', emoji: '🚌', ticket: '—', hours: '—', desc: '地址：杭州上城区环城东路12-8号。大巴前往乌镇西栅景区，¥29/人，20分钟一趟。' },
+    { name: '苏州北广场汽车客运站', city: '苏州', lat: 31.3310, lng: 120.6086, type: 'station', emoji: '🚌', ticket: '—', hours: '—', desc: '苏州北广场汽车客运站（苏站路1455号·苏州站北广场西侧）。乌镇大巴到达站，距苏州住宿约3km。' },
+    // 宝可梦卡牌道馆
+    { name: '宝可梦官方卡牌道馆杭州', city: '杭州', lat: 30.2490, lng: 120.1720, type: 'pokemon', label: '宝可梦', emoji: '⚡', ticket: '—', hours: '10:00-22:00', desc: '地址：上城区延安路90号工联cc商场2期b1楼。宝可梦官方卡牌道馆。' },
+  ],
+  foodSpots: [
+    // 杭州
+    { name: '知味观（湖滨总店）', city: '杭州', lat: 30.2555, lng: 120.1685, emoji: '🍜', price: '40-60元', desc: '百年老字号杭帮菜，西湖边最方便的正餐选择，8人可分两桌。', dishes: ['片儿川', '猫耳朵', '幸福双', '小笼包'] },
+    { name: '楼外楼（孤山店）', city: '杭州', lat: 30.2645, lng: 120.1390, emoji: '🐟', price: '120-180元', desc: '西湖醋鱼发源地，老字号名店。价格偏贵但名气大，想体验正宗杭帮菜可来一次。', dishes: ['西湖醋鱼', '叫花鸡', '龙井虾仁', '东坡肉'] },
+    { name: '奎元馆（解放路总店）', city: '杭州', lat: 30.2530, lng: 120.1770, emoji: '🍝', price: '25-45元', desc: '百年面馆，片儿川是杭州面食代表。人均便宜，适合午餐速战。', dishes: ['片儿川', '虾爆鳝面', '拌面'] },
+    { name: '新丰小吃（解放路店）', city: '杭州', lat: 30.2540, lng: 120.1750, emoji: '🥟', price: '15-30元', desc: '杭州人气小吃连锁，便宜量大，8人早餐或下午茶首选。', dishes: ['虾肉小笼', '牛肉粉丝', '糖藕', '麻球'] },
+    { name: '外婆家（湖滨店）', city: '杭州', lat: 30.2570, lng: 120.1650, emoji: '🍽️', price: '50-70元', desc: '杭州本土连锁杭帮菜，性价比高，商场里就有，排队较快。', dishes: ['茶香鸡', '酸菜鱼', '麻婆豆腐', '叫花鸡'] },
+    { name: '河坊街小吃街', city: '杭州', lat: 30.2470, lng: 120.1700, emoji: '🍡', price: '10-40元', desc: '南宋御街小吃集中地，边逛边吃，适合晚上来。正餐不建议在这吃。', dishes: ['葱包桧', '定胜糕', '油冬儿', '龙须糖'] },
+    { name: '弄堂里（武林店）', city: '杭州', lat: 30.2755, lng: 120.1716, emoji: '🍤', price: '60-90元', desc: '杭州本地人推荐的弄堂菜馆，口味地道，离酒店近。', dishes: ['油爆虾', '醉鸡', '葱油拌面', '白切肉'] },
+    // 乌镇
+    { name: '三珍斋（西栅景区内）', city: '乌镇', lat: 30.7495, lng: 120.5420, emoji: '🦆', price: '60-90元', desc: '乌镇百年老字号，酱鸭是招牌。景区内方便，价格略高于镇外。', dishes: ['酱鸭', '红烧羊肉', '白水鱼'] },
+    { name: '西栅小吃摊', city: '乌镇', lat: 30.7480, lng: 120.5445, emoji: '🥮', price: '5-15元', desc: '西栅景区内沿街小吃，边走边吃，定胜糕和萝卜丝饼必尝。', dishes: ['定胜糕', '萝卜丝饼', '姑嫂饼', '青团'] },
+    { name: '羊肉面馆（景区外）', city: '乌镇', lat: 30.7520, lng: 120.5390, emoji: '🍜', price: '30-50元', desc: '乌镇特色羊肉面，景区外的小馆子更实惠，出景区后吃正餐。', dishes: ['红烧羊肉面', '白切羊肉'] },
+    // 苏州
+    { name: '得月楼（太监浜店）', city: '苏州', lat: 31.3180, lng: 120.6150, emoji: '🐟', price: '100-150元', desc: '苏州百年老字号，松鼠桂鱼发源地。价格偏贵。', dishes: ['松鼠桂鱼', '响油鳝糊', '蜜汁火方'] },
+    { name: '松鹤楼（观前街店）', city: '苏州', lat: 31.3120, lng: 120.6250, emoji: '🍲', price: '80-120元', desc: '苏州另一百年老店，与得月楼齐名。苏帮菜代表，观前街方便。', dishes: ['松鼠桂鱼', '苏式汤面', '樱桃肉'] },
+    { name: '同得兴（嘉余坊店）', city: '苏州', lat: 31.3100, lng: 120.6200, emoji: '🍜', price: '20-35元', desc: '苏州最正宗的苏式汤面馆，枫镇大肉面是招牌。便宜好吃，午餐首选。', dishes: ['枫镇大肉面', '焖肉面', '爆鱼面'] },
+    { name: '哑巴生煎（临顿路店）', city: '苏州', lat: 31.3200, lng: 120.6300, emoji: '🥟', price: '15-25元', desc: '苏州人气生煎，皮脆汁多，排队很长但值得。早餐或下午茶。', dishes: ['生煎包', '牛肉粉丝汤'] },
+    { name: '山塘街小吃', city: '苏州', lat: 31.3165, lng: 120.6030, emoji: '🍡', price: '10-30元', desc: '山塘街沿街小吃，边逛夜景边吃，糖粥和桂花糕是苏州特色。', dishes: ['糖粥', '桂花糕', '蟹壳黄', '梅花糕'] },
+  ],
+  days: [
+    { day: 0, title: '西安 → 杭州', date: '7月20日', weekday: '周一', city: '杭州', color: '#78909c', summary: '高铁G1896出发，下午到达杭州东，办理入住后休整', highlights: ['高铁G1896', '下午到杭州东', '入住轻奢大平层', '休整'], budget: { transport: 731, food: 55, tickets: 0, total: 786 },
+      timeline: [
+        { time: '07:00前', activity: '收拾行李，检查身份证、学生证、充电宝' },
+        { time: '08:32', activity: '西安北出发，高铁G1896' },
+        { time: '16:27', activity: '到达杭州东站' },
+        { time: '17:00', activity: '地铁/打车到酒店（轻奢大平层·滨江区）' },
+        { time: '17:30', activity: '办理入住，8人入住' },
+        { time: '18:30', activity: '酒店附近晚餐（面馆/馄饨/烧烤）' },
+        { time: '20:00', activity: '附近走走，熟悉周边环境' },
+        { time: '23:00', activity: '早点休息，明天开始玩' },
+      ],
+      tips: '到达杭州东站后坐地铁进城。8人行李多可分两辆网约车直达酒店（滨江区风情大道565号·江斓映象府7号楼）。',
+      route: [[34.3728,108.9397],[30.2911,120.2126],[30.2070,120.2100]],
+      locations: [
+        { name: '西安北站', lat: 34.3728, lng: 108.9397, description: '高铁出发 · G1896(08:32)' },
+        { name: '杭州东站', lat: 30.2911, lng: 120.2126, description: '高铁到达 · 地铁进城' },
+        { name: '轻奢大平层', lat: 30.2070, lng: 120.2100, description: '住5晚 · 滨江区风情大道565号 · 可住8人 · ¥1060/天' },
+      ],
+    },
+    { day: 1, title: '杭州 · 西湖经典线+宝可梦道馆', date: '7月21日', weekday: '周二', city: '杭州', color: '#2c8c99', summary: '断桥→白堤→孤山→午休→花港→苏堤→雷峰塔→宝可梦道馆→河坊街', highlights: ['断桥白堤', '孤山西泠桥', '花港观鱼', '苏堤南段', '雷峰塔外观', '宝可梦卡牌道馆', '河坊街夜景'], budget: { transport: 20, food: 130, tickets: 55, total: 205 },
+      timeline: [
+        { time: '08:30', activity: '起床，酒店附近早餐' },
+        { time: '09:40', activity: '地铁到龙翔桥/凤起路' },
+        { time: '10:00', activity: '湖滨散步 → 断桥 → 白堤' },
+        { time: '11:30', activity: '孤山、西泠桥、平湖秋月' },
+        { time: '12:30', activity: '午餐（湖滨商场，空调舒服）' },
+        { time: '13:30-15:30', activity: '回酒店午休，避开最热时段' },
+        { time: '16:00', activity: '宝可梦官方卡牌道馆（工联cc商场b1楼）' },
+        { time: '17:00', activity: '花港观鱼 → 苏堤南段' },
+        { time: '18:00', activity: '雷峰塔外观（想登塔再买票约40元）' },
+        { time: '19:00', activity: '晚餐，湖滨/河坊街/南宋御街' },
+        { time: '22:30', activity: '回酒店' },
+      ],
+      tips: '西湖游船看天气：不太晒可坐普通船（55-70元/人），太热就改傍晚湖边散步。宝可梦道馆在工联cc商场b1楼，10:00-22:00营业。',
+      route: [[30.2592,120.1683],[30.2616,120.1504],[30.2635,120.1446],[30.2640,120.1383],[30.2490,120.1720],[30.2330,120.1400],[30.2310,120.1370],[30.2317,120.1493],[30.2470,120.1700]],
+      locations: [
+        { name: '湖滨/龙翔桥', lat: 30.2592, lng: 120.1683, description: '地铁1号线龙翔桥站 · 西湖主入口' },
+        { name: '断桥', lat: 30.2616, lng: 120.1504, description: '白堤起点 · 断桥残雪' },
+        { name: '白堤', lat: 30.2635, lng: 120.1446, description: '桃柳夹岸 · 步行至孤山' },
+        { name: '孤山·西泠桥', lat: 30.2640, lng: 120.1383, description: '西泠印社、平湖秋月' },
+        { name: '宝可梦官方卡牌道馆杭州', lat: 30.2490, lng: 120.1720, description: '工联cc商场b1楼 · 10:00-22:00 · 官方卡牌道馆' },
+        { name: '花港观鱼', lat: 30.2330, lng: 120.1400, description: '西湖十景之一 · 红鱼池' },
+        { name: '苏堤南段', lat: 30.2310, lng: 120.1370, description: '六桥烟柳 · 走南段即可' },
+        { name: '雷峰塔', lat: 30.2317, lng: 120.1493, description: '外观免费 · 登塔约40元' },
+        { name: '河坊街', lat: 30.2470, lng: 120.1700, description: '南宋御街 · 小吃、伴手礼' },
+      ],
+    },
+    { day: 2, title: '杭州 · 灵隐飞来峰+龙井九溪', date: '7月22日', weekday: '周三', city: '杭州', color: '#2c8c99', summary: '早起去灵隐避开人潮，下午龙井村或九溪浅走，晚上小河直街', highlights: ['飞来峰造像', '灵隐寺', '龙井村/九溪', '小河直街夜宵'], budget: { transport: 40, food: 130, tickets: 83, total: 253 },
+      timeline: [
+        { time: '06:50', activity: '起床' },
+        { time: '07:20', activity: '出发去灵隐（打车/地铁+公交）' },
+        { time: '08:00-10:00', activity: '飞来峰景区造像游览' },
+        { time: '10:00-11:30', activity: '灵隐寺' },
+        { time: '11:30-12:30', activity: '午餐' },
+        { time: '13:00-15:00', activity: '龙井村喝茶或九溪浅走' },
+        { time: '15:30-17:30', activity: '回酒店休息' },
+        { time: '18:30', activity: '晚餐' },
+        { time: '20:00', activity: '小河直街/武林广场自由活动' },
+      ],
+      tips: '灵隐涉及两笔费用：飞来峰景区门票+灵隐寺香花券，合计约75-90元/人。学生证带好可能有优惠。',
+      route: [[30.2755,120.1716],[30.2406,120.1000],[30.2230,120.1167],[30.2050,120.1150],[30.3010,120.1310]],
+      locations: [
+        { name: '灵隐寺·飞来峰', lat: 30.2406, lng: 120.1000, description: '飞来峰造像+灵隐寺 · 杭州必去 · 早点到' },
+        { name: '龙井村', lat: 30.2230, lng: 120.1167, description: '茶村 · 喝茶拍照 · 走路少比较舒适' },
+        { name: '九溪十八涧', lat: 30.2050, lng: 120.1150, description: '溪水树荫 · 只走入口到溪边一段' },
+        { name: '小河直街', lat: 30.3010, lng: 120.1310, description: '运河边历史街区 · 夜宵、拍照' },
+      ],
+    },
+    { day: 3, title: '杭州 · 西溪湿地+运河夜景', date: '7月23日', weekday: '周四', city: '杭州', color: '#2c8c99', summary: '上午西溪湿地走精华区，下午酒店午休，傍晚拱宸桥+桥西历史街区', highlights: ['西溪湿地', '拱宸桥', '桥西历史街区', '小河直街'], budget: { transport: 35, food: 130, tickets: 120, total: 285 },
+      timeline: [
+        { time: '08:00', activity: '起床' },
+        { time: '08:40', activity: '出发去西溪湿地' },
+        { time: '09:30-12:30', activity: '西溪湿地游览' },
+        { time: '12:30-13:30', activity: '午餐' },
+        { time: '14:00-16:30', activity: '酒店午休' },
+        { time: '17:30', activity: '前往拱宸桥' },
+        { time: '18:00-20:30', activity: '桥西历史街区、小河直街、运河边散步' },
+        { time: '21:00', activity: '回酒店' },
+      ],
+      tips: '西溪湿地省钱玩法：买基础门票走精华区，不坐船。舒适玩法：门票+船票。按80-160元/人预算。',
+      route: [[30.2755,120.1716],[30.2720,120.0720],[30.3210,120.1420],[30.3190,120.1410],[30.3010,120.1310]],
+      locations: [
+        { name: '西溪湿地', lat: 30.2720, lng: 120.0720, description: '国家湿地公园 · 门票80元起 · 船票另计' },
+        { name: '拱宸桥', lat: 30.3210, lng: 120.1420, description: '京杭大运河南端标志 · 免费' },
+        { name: '桥西历史街区', lat: 30.3190, lng: 120.1410, description: '运河边老街 · 刀剪剑伞扇博物馆' },
+        { name: '小河直街', lat: 30.3010, lng: 120.1310, description: '运河支流旁 · 文艺小店、夜宵' },
+      ],
+    },
+    { day: 4, title: '杭州→乌镇 · 大巴前往住一晚', date: '7月24日', weekday: '周五', city: '乌镇', color: '#c44536', summary: '从杭州住宿出发，前往杭州城站汽车客运站坐大巴直达乌镇西栅景区，住乌镇一晚体验水乡夜景', highlights: ['大巴杭州→乌镇', '西栅主街', '水上集市', '桥影夜景', '草木本色染坊', '住乌镇'], budget: { transport: 50, food: 140, tickets: 150, total: 340 },
+      timeline: [
+        { time: '08:30', activity: '起床，收拾行李' },
+        { time: '09:30', activity: '退房，出发去杭州城站汽车客运站（环城东路12-8号·9.5km打车20min）' },
+        { time: '10:30', activity: '大巴杭州长途汽车客运城站广场→乌镇西栅景区（¥29·20分钟一趟）' },
+        { time: '12:00', activity: '到达乌镇西栅景区，先到酒店（夜泊枫桥）放行李' },
+        { time: '12:30', activity: '景区外午餐' },
+        { time: '13:30-18:00', activity: '西栅游览：西栅入口→水上集市→草木本色染坊' },
+        { time: '18:00-20:30', activity: '西栅夜景 + 晚餐/小吃' },
+        { time: '21:00', activity: '回酒店（夜泊枫桥·环河路211号）休息' },
+      ],
+      tips: '大巴杭州→乌镇西栅景区直达，¥29/人，约1.5小时，20分钟一趟。只买西栅票（约150元），集中玩好一个地方。东栅不作为必选。住乌镇一晚，不用赶回杭州。',
+      route: [[30.7487,120.5430],[30.7520,120.5470],[30.7460,120.5400],[30.7450,120.5450],[30.7550,120.5380],[30.7560,120.5370],[30.7500,120.5500],[30.7520,120.5410]],
+      locations: [
+        { name: '乌镇西栅', lat: 30.7487, lng: 120.5430, description: '门票约150元 · 水乡夜景 · 桥影桨声' },
+        { name: '西栅入口', lat: 30.7520, lng: 120.5470, description: '西栅主入口 · 游客中心' },
+        { name: '水上集市', lat: 30.7460, lng: 120.5400, description: '摇橹船穿梭 · 最经典水乡画面' },
+        { name: '草木本色染坊', lat: 30.7450, lng: 120.5450, description: '蓝印花布晾晒 · 打卡热点' },
+        { name: '乌镇东栅', lat: 30.7550, lng: 120.5380, description: '原生态 · 茅盾故居 · 可选' },
+        { name: '茅盾故居', lat: 30.7560, lng: 120.5370, description: '文学家茅盾出生地' },
+        { name: '乌镇大桥', lat: 30.7500, lng: 120.5500, description: '连接东西栅 · 俯瞰水乡全貌' },
+        { name: '夜泊枫桥', lat: 30.7520, lng: 120.5410, description: '乌镇镇环河路211号211室 · 住1晚' },
+      ],
+    },
+    { day: 5, title: '乌镇→苏州 · 大巴前往+园林初探', date: '7月25日', weekday: '周六', city: '苏州', color: '#4a7c59', summary: '大巴从乌镇西栅景区前往苏州北广场汽车客运站，入住苏韵之家后下午拙政园，晚上平江路水巷', highlights: ['大巴乌镇→苏州', '拙政园（四大名园）', '平江路水巷'], budget: { transport: 80, food: 130, tickets: 75, total: 285 },
+      timeline: [
+        { time: '08:30', activity: '起床，收拾行李，退房（夜泊枫桥）' },
+        { time: '09:30', activity: '步行到乌镇西栅景区站（375m）' },
+        { time: '10:00', activity: '大巴乌镇西栅景区→苏州北广场汽车客运站（¥55·20min一趟）' },
+        { time: '11:30', activity: '到达苏州北广场客运站，打车到苏韵之家（3.2km）' },
+        { time: '12:00', activity: '入住苏韵之家（姑苏区皋桥大通花园），午餐' },
+        { time: '14:30-17:00', activity: '拙政园（中国四大名园之一）' },
+        { time: '17:30-19:00', activity: '平江路水巷漫步 + 晚餐' },
+        { time: '20:00', activity: '回酒店休息' },
+      ],
+      tips: '大巴乌镇西栅→苏州北广场客运站，¥55/人，约1.5小时，20分钟一趟。拙政园暑期人多，建议开门即入或下午稍晚去。学生证可半价。',
+      route: [[30.7520,120.5410],[31.3150,120.6080],[31.3240,120.6280],[31.3160,120.6280]],
+      locations: [
+        { name: '苏韵之家', lat: 31.3150, lng: 120.6080, description: '苏州姑苏区皋桥大通花园西门旁 · 住2晚' },
+        { name: '拙政园', lat: 31.3240, lng: 120.6280, description: '中国四大名园 · 门票约70-80元' },
+        { name: '平江路', lat: 31.3160, lng: 120.6280, description: '千年水巷 · 小桥流水 · 免费' },
+      ],
+    },
+    { day: 6, title: '苏州 · 虎丘+留园+山塘街', date: '7月26日', weekday: '周日', city: '苏州', color: '#4a7c59', summary: '上午虎丘（吴中第一名胜），下午留园（四大名园），傍晚山塘街夜景', highlights: ['虎丘（吴中第一名胜）', '留园（四大名园）', '山塘街夜景', '苏帮菜晚餐'], budget: { transport: 35, food: 140, tickets: 138, total: 313 },
+      timeline: [
+        { time: '08:00', activity: '起床，酒店附近早餐' },
+        { time: '09:00-11:30', activity: '虎丘（吴中第一名胜）' },
+        { time: '12:00-13:00', activity: '午餐' },
+        { time: '13:30-15:30', activity: '留园（中国四大名园之一）' },
+        { time: '16:00-17:30', activity: '回酒店休息' },
+        { time: '18:00-20:30', activity: '山塘街晚餐 + 夜景' },
+        { time: '21:00', activity: '回酒店，收拾行李准备明天返程' },
+      ],
+      tips: '虎丘+留园一天可以打满，但7月热，中午一定要休息。山塘街夜景很值得看，晚餐在山塘街吃苏帮菜。',
+      route: [[31.3150,120.6080],[31.3220,120.5720],[31.3170,120.5970],[31.3160,120.6025],[31.3150,120.6080]],
+      locations: [
+        { name: '虎丘', lat: 31.3220, lng: 120.5720, description: '吴中第一名胜 · 门票约60-80元 · 斜塔' },
+        { name: '留园', lat: 31.3170, lng: 120.5970, description: '中国四大名园 · 门票约55元 · 精致园林' },
+        { name: '山塘街', lat: 31.3160, lng: 120.6025, description: '七里山塘 · 夜景+晚餐 · 免费' },
+      ],
+    },
+    { day: 7, title: '苏州 → 西安', date: '7月27日', weekday: '周一', city: '苏州', color: '#78909c', summary: '退房返程，高铁苏州→西安北（约6-7小时），下午到达西安', highlights: ['退房', '高铁返程', '回到西安'], budget: { transport: 775, food: 75, tickets: 0, total: 850 },
+      timeline: [
+        { time: '08:00', activity: '起床，早餐' },
+        { time: '09:00', activity: '收拾行李、退房' },
+        { time: '10:00', activity: '出发去高铁站' },
+        { time: '11:00前后', activity: '高铁苏州→西安北（约6-7小时）' },
+        { time: '17:00-18:00', activity: '到达西安北，回家' },
+      ],
+      tips: '建议选上午出发的车次，下午到西安。8人退房+去车站需要冗余时间，不要太赶。具体车次待确定。',
+      route: [[31.3150,120.6080],[31.4212,120.6437],[34.3728,108.9397]],
+      locations: [
+        { name: '苏州北站', lat: 31.4212, lng: 120.6437, description: '高铁返程出发 · 8人检票提前到 · 车次待确定' },
+        { name: '西安北站', lat: 34.3728, lng: 108.9397, description: '到达 · 回家' },
+      ],
+    },
+  ],
+  budget: {
+    note: '以下预算含西安往返高铁大交通。去程G1896(¥730.5)，返程苏州→西安高铁约¥700-850。住宿为实际人均费用。城际交通按大巴计算。',
+    categories: [
+      { item: '去程高铁G1896（西安北→杭州东）', low: 731, high: 731, note: '08:32→16:27 · ¥730.5 · 已选定' },
+      { item: '杭州住宿5晚（轻奢大平层·人均）', low: 530, high: 530, note: '滨江区风情大道565号 · 人均¥529.89' },
+      { item: '乌镇住宿1晚（夜泊枫桥·人均）', low: 52, high: 52, note: '环河路211号 · 人均¥52' },
+      { item: '苏州住宿2晚（苏韵之家·人均）', low: 306, high: 306, note: '姑苏区皋桥大通花园 · 人均¥305.75' },
+      { item: '杭州市内交通', low: 100, high: 300, note: '地铁为主，少量打车' },
+      { item: '大巴杭州→乌镇', low: 29, high: 29, note: '杭州城站客运站→乌镇西栅 · ¥29/人' },
+      { item: '大巴乌镇→苏州', low: 55, high: 55, note: '乌镇西栅→苏州北广场客运站 · ¥55/人' },
+      { item: '返程高铁（苏州→西安北）', low: 700, high: 850, note: '约6-7小时 · 具体车次待确定' },
+      { item: '门票/船票', low: 300, high: 600, note: '灵隐、西溪、拙政园、留园、虎丘、乌镇等' },
+      { item: '餐饮8天', low: 700, high: 1200, note: '每天约80-150元/人' },
+      { item: '备用金', low: 200, high: 300, note: '防意外' },
+    ],
+    totalLow: 3403,
+    totalHigh: 4653,
+  },
+  weather: {
+    title: '7月天气预警',
+    temp: '32-38°C',
+    condition: '高温潮湿 · 午后雷阵雨',
+    uv: '极强',
+    tips: [
+      '每人每天至少带1瓶水出门',
+      '11:30-15:30尽量减少户外暴走',
+      '不舒服立刻说，不硬撑',
+      '每天中午有条件就回酒店洗澡/午睡',
+      '穿透气鞋，不穿新鞋暴走',
+    ],
+  },
+  packing: {
+    must: ['身份证', '学生证', '手机/充电器/充电宝', '少量现金', '换洗衣物', '舒适运动鞋'],
+    sun: ['防晒霜', '遮阳帽', '防晒衣', '墨镜', '折叠伞', '一次性雨衣'],
+    medicine: ['藿香正气类', '创可贴', '肠胃药', '速干衣', '小毛巾'],
+    hotel: ['一次性内裤/袜子', '拖鞋', '洗衣液小包', '脏衣袋', '耳塞'],
+  },
+  rainyDayPlan: [
+    { original: '西湖暴走', alternative: '浙江省博物馆/商场，晚上雨停再湖边' },
+    { original: '九溪', alternative: '龙井村短走或直接回酒店' },
+    { original: '西溪湿地', alternative: '浙江自然博物院/中国动漫博物馆' },
+    { original: '乌镇户外', alternative: '良渚博物院/城市休息日' },
+    { original: '苏州户外街区', alternative: '拙政园 + 室内休息' },
+  ],
+  /* 城市美食清单（键 = cities[].name，值 = 代表美食/小吃名数组） */
+  foodGuide: {
+    '杭州': ['片儿川', '葱包桧', '东坡肉', '龙井虾仁', '西湖醋鱼', '叫花鸡', '生煎', '小笼'],
+    '苏州': ['松鼠桂鱼', '响油鳝糊', '苏式汤面', '桂花糕', '蟹壳黄', '糖粥'],
+    '乌镇': ['羊肉面', '白水鱼', '酱鸭', '姑嫂饼', '定胜糕', '萝卜丝饼'],
+  },
+};
+
+/* ============================================================
+   APP LOGIC
+   ============================================================ */
+(function () {
+  'use strict';
+  var data = TRIP_DATA;
+  var cityColors = {}; var cityIcons = {};
+  data.cities.forEach(function (c) { cityColors[c.name] = c.color; cityIcons[c.name] = c.icon || 'fa-location-dot'; });
+
+  /* 高德地图导航链接（PC 打开网页版导航，手机端 callnative=1 直接唤起高德App，起点自动取当前位置）
+     坐标必须使用 GCJ-02 火星坐标系（高德体系内坐标），WGS-84 GPS 原始坐标会有约 500m 偏移 */
+  var amapNav = function (name, lng, lat) {
+    return 'https://uri.amap.com/navigation?to=' + lng + ',' + lat + ',' + encodeURIComponent(name) + '&mode=car&policy=1&callnative=1&src=travel_guide';
+  };
+
+  /* ---- 主题注入：CSS 变量 / 标题 / favicon / hero 渐变与山峦 ---- */
+  function applyTheme() {
+    var t = data.theme || {};
+    var m = data.meta || {};
+    var root = document.documentElement.style;
+    var map = [
+      ['--water', t.primary], ['--water-light', t.primaryLight], ['--water-dark', t.primaryDark],
+      ['--vermilion', t.secondary], ['--vermilion-light', t.secondaryLight],
+      ['--jade', t.accent], ['--jade-light', t.accentLight],
+      ['--ink', t.ink], ['--ink-light', t.inkLight],
+      ['--paper', t.paper], ['--paper-dark', t.paperDark], ['--paper-darker', t.paperDarker],
+    ];
+    map.forEach(function (kv) { if (kv[1]) root.setProperty(kv[0], kv[1]); });
+    if (t.heroGradient && t.heroGradient.length >= 3) {
+      var hero = document.querySelector('.hero');
+      if (hero) hero.style.background = 'linear-gradient(135deg,' + t.heroGradient[0] + ' 0%,' + t.heroGradient[1] + ' 40%,' + t.heroGradient[2] + ' 100%)';
+    }
+    if (t.mountains && t.mountains.length >= 3) {
+      var m1 = document.getElementById('heroMountain1');
+      var m2 = document.getElementById('heroMountain2');
+      var m3 = document.getElementById('heroMountain3');
+      if (m1) m1.setAttribute('fill', t.mountains[0]);
+      if (m2) m2.setAttribute('fill', t.mountains[1]);
+      if (m3) m3.setAttribute('fill', t.mountains[2]);
+    }
+    if (m.title) document.title = m.title + ' · 旅行攻略';
+    if (m.favicon) {
+      var icon = document.querySelector('link[rel="icon"]');
+      if (icon) icon.setAttribute('href', "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>" + m.favicon + "</text></svg>");
+    }
+    if (m.logoIcon) {
+      var li = document.getElementById('navLogoIcon');
+      if (li) { li.className = 'fas ' + m.logoIcon; }
+    }
+    document.getElementById('navLogoText').textContent = m.title || '旅行攻略';
+    document.getElementById('footerLogo').textContent = m.title || '旅行攻略';
+    document.getElementById('footerTagline').textContent = (m.tagline || '');
+  }
+
+  /* ---- Hero ---- */
+  function initHero() {
+    var m = data.meta;
+    document.getElementById('heroBadge').textContent = m.badge || '旅行攻略';
+    document.getElementById('heroTitle').textContent = m.title || '旅行攻略';
+    document.getElementById('heroSubtitle').textContent = m.subtitle || '';
+    document.getElementById('heroTagline').textContent = m.tagline || '';
+
+    // 出发地 → 城市1 → 城市2 ... 路线 chips
+    var routeHtml = '<span class="city-chip" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)">' + (m.origin || '') + '</span>';
+    data.cities.forEach(function (c) {
+      var rgb = hexToRgb(c.color);
+      routeHtml += '<i class="fas fa-arrow-right arrow"></i>' +
+        '<span class="city-chip" style="background:rgba(' + rgb + ',.25);border:1px solid rgba(' + rgb + ',.4);color:' + c.color + '">' + c.name + '</span>';
+    });
+    document.getElementById('heroRoute').innerHTML = routeHtml;
+
+    // 城市卡片
+    document.getElementById('heroCities').innerHTML = data.cities.map(function (c) {
+      return '<div class="hero-city"><i class="fas ' + (c.icon || 'fa-location-dot') + '" style="color:' + c.color + '"></i><span>' + c.name + '</span><small>' + (c.tagline || '') + '</small></div>';
+    }).join('');
+
+    var stats = [
+      { label: '出行日期', value: m.dates },
+      { label: '天数', value: m.days + '天' + m.nights + '晚' },
+      { label: '人数', value: m.people + '人' },
+      { label: '交通', value: m.transport },
+    ];
+    document.getElementById('heroStats').innerHTML = stats.map(function (s) {
+      return '<div class="hero-stat"><div class="label">' + s.label + '</div><div class="value">' + s.value + '</div></div>';
+    }).join('');
+  }
+
+  function hexToRgb(hex) {
+    var h = hex.replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    return ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255);
+  }
+
+  /* ---- Leaflet 高德地图 ---- */
+  var leafletMap = null;
+  var lMarkers = {};
+  var lFoodLayer = null;
+  var lShowFood = false;
+  var lActiveDay = null;
+  var lDayLayers = {};
+
+  /* 在 cities / transportLegs / mapSpots 中查找地点坐标（自动兜底，无硬编码） */
+  function findPlaceCoord(name) {
+    var c = data.cities.find(function (x) { return x.name === name; });
+    if (c) return { lat: c.lat, lng: c.lng };
+    var leg = (data.transportLegs || []).find(function (x) { return x.from === name || x.to === name; });
+    if (leg) {
+      if (leg.from === name && leg.fromLat != null) return { lat: leg.fromLat, lng: leg.fromLng };
+      if (leg.to === name && leg.toLat != null) return { lat: leg.toLat, lng: leg.toLng };
+    }
+    var s = data.mapSpots.find(function (x) { return x.name === name; });
+    if (s) return { lat: s.lat, lng: s.lng };
+    return null;
+  }
+
+  function initLeafletMap() {
+    if (typeof L === 'undefined') return;
+    var allCityBounds = L.latLngBounds(data.cities.map(function (c) { return [c.lat, c.lng]; }));
+    var center = allCityBounds.getCenter();
+    leafletMap = L.map('leafletMap', { center: [center.lat, center.lng], zoom: 9, zoomControl: true, scrollWheelZoom: true });
+
+    // 高德地图标准瓦片（矢量路网，清晰）—— subdomains 必须是 1-4，缺失会导致地图空白
+    L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+      subdomains: ['1', '2', '3', '4'],
+      attribution: '&copy; 高德地图 AutoNavi',
+      maxZoom: 19,
+    }).addTo(leafletMap);
+
+    // 初始视野自适应所有城市
+    leafletMap.fitBounds(allCityBounds.pad(0.35));
+
+    // 城市大标签（红色文字，无圆圈）
+    data.cities.forEach(function (city) {
+      L.marker([city.lat, city.lng], {
+        icon: L.divIcon({
+          className: 'l-city-label',
+          html: '<div style="color:#d32f2f;padding:2px 10px;font-size:1.1rem;font-weight:800;white-space:nowrap;text-shadow:0 0 6px rgba(255,255,255,.9),0 0 6px rgba(255,255,255,.9);">' + city.name + '</div>',
+          iconSize: [0, 0], iconAnchor: [0, 0],
+        }),
+      }).addTo(leafletMap);
+    });
+
+    // 城际交通线（坐标查不到的城市自动跳过该段，不会报错）
+    (data.transportRoutes || []).forEach(function (route) {
+      var fc = findPlaceCoord(route.from);
+      var tc = findPlaceCoord(route.to);
+      if (!fc || !tc) return;
+      L.polyline([[fc.lat, fc.lng], [tc.lat, tc.lng]], {
+        color: route.color, weight: 2.5, opacity: 0.5, dashArray: '8 5',
+      }).addTo(leafletMap).bindTooltip(route.mode + ' ' + route.time + (route.note ? ' · ' + route.note : ''), { permanent: false, direction: 'center', className: 'l-route-label' });
+    });
+
+    // 快捷定位按钮（数据驱动生成）
+    document.getElementById('focusBtns').innerHTML = data.cities.map(function (c) {
+      return '<button class="focus-btn" data-lat="' + c.lat + '" data-lng="' + c.lng + '"><i class="fas fa-location-dot" style="color:' + c.color + '"></i> ' + c.name + '</button>';
+    }).join('');
+    document.querySelectorAll('#focusBtns .focus-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        leafletMap.flyTo([parseFloat(this.getAttribute('data-lat')), parseFloat(this.getAttribute('data-lng'))], 12, { duration: 0.6 });
+      });
+    });
+
+    // 地图图例（城市色数据驱动生成）
+    var legend = document.getElementById('mapLegend');
+    var cityLegend = data.cities.map(function (c) {
+      return '<div class="legend-item"><div class="legend-dot" style="background:' + c.color + '"></div>' + c.name + '景点</div>';
+    }).join('');
+    legend.insertAdjacentHTML('afterbegin', cityLegend);
+
+    // 景点标记（水滴形 + emoji）
+    lMarkers.spots = L.layerGroup();
+    data.mapSpots.forEach(function (spot) {
+      var cc = cityColors[spot.city] || '#00897b';
+      var isStation = spot.type === 'station';
+      var isHotel = spot.type === 'hotel';
+      var isPokemon = spot.type === 'pokemon';
+      var iconHtml, iconClass, iconSize, iconAnchor, popupAnchor;
+      if (isHotel) {
+        iconHtml = '<div class="l-hotel-marker"><div class="l-hotel-star"><span>' + spot.emoji + '</span></div></div>';
+        iconClass = 'l-hotel-icon'; iconSize = [36,36]; iconAnchor = [18,18]; popupAnchor = [0,-18];
+      } else if (isPokemon) {
+        iconHtml = '<div class="l-pokemon-marker"><span>' + spot.emoji + '</span></div>';
+        iconClass = 'l-pokemon-icon'; iconSize = [32,32]; iconAnchor = [16,32]; popupAnchor = [0,-32];
+      } else if (isStation) {
+        iconHtml = '<div class="l-station-marker" style="border-color:' + cc + ';"><span>' + spot.emoji + '</span></div>';
+        iconClass = 'l-station-icon'; iconSize = [30,30]; iconAnchor = [15,15]; popupAnchor = [0,-15];
+      } else {
+        iconHtml = '<div class="l-att-marker" style="background:' + cc + ';"><span>' + spot.emoji + '</span></div>';
+        iconClass = 'l-att-icon'; iconSize = [32,32]; iconAnchor = [16,32]; popupAnchor = [0,-32];
+      }
+      var icon = L.divIcon({ className: iconClass, html: iconHtml, iconSize: iconSize, iconAnchor: iconAnchor, popupAnchor: popupAnchor });
+
+      var ticketLine = spot.ticket && spot.ticket !== '—' ? '<div class="l-pop-ticket" style="color:' + cc + ';">' + (isHotel ? '价格' : '门票') + '：' + spot.ticket + '</div>' : '';
+      var hoursLine = spot.hours && spot.hours !== '—' ? '<div class="l-pop-hours">' + (isHotel ? '可住人数' : (isPokemon ? '营业时间' : '开放')) + '：' + spot.hours + '</div>' : '';
+      var typeLabel = isHotel ? '住宿' : (isPokemon ? (spot.label || '特色') : spot.city);
+      var navLink = '<a class="l-pop-nav" href="' + amapNav(spot.name, spot.lng, spot.lat) + '" target="_blank" rel="noopener"><i class="fas fa-diamond-turn-right"></i> 高德地图导航</a>';
+      var popupHtml = '<div class="l-popup"><div class="l-popup-header" style="background:' + (isHotel ? 'gold' : (isPokemon ? '#ffd700' : cc)) + ';color:' + (isHotel || isPokemon ? '#333' : '#fff') + ';"><span class="l-pop-emoji">' + spot.emoji + '</span> ' + spot.name + ' <span class="l-pop-type">' + typeLabel + '</span></div><div class="l-popup-body">' + ticketLine + hoursLine + '<p>' + spot.desc + '</p>' + navLink + '</div></div>';
+
+      L.marker([spot.lat, spot.lng], { icon: icon }).bindPopup(popupHtml).addTo(lMarkers.spots);
+    });
+    lMarkers.spots.addTo(leafletMap);
+
+    // 美食标记（橙色圆形）
+    lFoodLayer = L.layerGroup();
+    data.foodSpots.forEach(function (spot) {
+      var cc = cityColors[spot.city] || '#c44536';
+      var icon = L.divIcon({
+        className: 'l-food-icon',
+        html: '<div class="l-food-marker"><span>' + spot.emoji + '</span></div>',
+        iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -13],
+      });
+      var dishesHtml = spot.dishes.map(function (d) { return '<span class="l-pop-dish">' + d + '</span>'; }).join('');
+      var navLink = '<a class="l-pop-nav" href="' + amapNav(spot.name, spot.lng, spot.lat) + '" target="_blank" rel="noopener"><i class="fas fa-diamond-turn-right"></i> 高德地图导航</a>';
+      var popupHtml = '<div class="l-popup"><div class="l-popup-header" style="background:' + cc + ';"><span class="l-pop-emoji">' + spot.emoji + '</span> ' + spot.name + ' <span class="l-pop-type">美食</span></div><div class="l-popup-body"><div class="l-pop-ticket" style="color:' + cc + ';">人均：' + spot.price + '</div><p>' + spot.desc + '</p><div class="l-pop-dishes-label">招牌菜品</div><div class="l-pop-dishes">' + dishesHtml + '</div>' + navLink + '</div></div>';
+      L.marker([spot.lat, spot.lng], { icon: icon }).bindPopup(popupHtml).addTo(lFoodLayer);
+    });
+
+    // 每日路线图层（与全部路线相同的emoji水滴标记 + 带箭头路线）
+    data.days.forEach(function (day) {
+      var markers = L.layerGroup();
+      var routePoints = [];
+
+      // 辅助函数：在mapSpots中查找对应的spot信息
+      function findSpot(name) {
+        return data.mapSpots.find(function (s) { return s.name === name; });
+      }
+
+      day.locations.forEach(function (loc) {
+        var spot = findSpot(loc.name);
+        var spotType = spot ? spot.type : 'view';
+        var spotEmoji = spot ? spot.emoji : '📍';
+
+        // 车站不放入路线
+        if (spotType === 'station') return;
+
+        routePoints.push([loc.lat, loc.lng]);
+        var cc = cityColors[day.city] || '#78909c';
+        var isHotel = spotType === 'hotel';
+        var isPokemon = spotType === 'pokemon';
+
+        // 使用与全部路线相同的水滴emoji标记
+        var iconHtml, iconClass, iconSize, iconAnchor, popupAnchor;
+        if (isHotel) {
+          iconHtml = '<div class="l-hotel-marker"><div class="l-hotel-star"><span>' + spotEmoji + '</span></div></div>';
+          iconClass = 'l-hotel-icon'; iconSize = [36,36]; iconAnchor = [18,18]; popupAnchor = [0,-18];
+        } else if (isPokemon) {
+          iconHtml = '<div class="l-pokemon-marker"><span>' + spotEmoji + '</span></div>';
+          iconClass = 'l-pokemon-icon'; iconSize = [32,32]; iconAnchor = [16,32]; popupAnchor = [0,-32];
+        } else {
+          iconHtml = '<div class="l-att-marker" style="background:' + cc + ';"><span>' + spotEmoji + '</span></div>';
+          iconClass = 'l-att-icon'; iconSize = [32,32]; iconAnchor = [16,32]; popupAnchor = [0,-32];
+        }
+        var icon = L.divIcon({ className: iconClass, html: iconHtml, iconSize: iconSize, iconAnchor: iconAnchor, popupAnchor: popupAnchor });
+        var navLink = '<a class="l-pop-nav" href="' + amapNav(loc.name, loc.lng, loc.lat) + '" target="_blank" rel="noopener"><i class="fas fa-diamond-turn-right"></i> 高德地图导航</a>';
+        var popupHtml = '<div class="l-popup"><div class="l-popup-header" style="background:' + cc + ';"><span class="l-pop-emoji">' + spotEmoji + '</span> Day ' + day.day + ' · ' + loc.name + '</div><div class="l-popup-body"><p>' + loc.description + '</p><p style="font-size:.75rem;color:var(--text-light);margin-top:4px;">' + day.date + ' ' + day.weekday + '</p>' + navLink + '</div></div>';
+        L.marker([loc.lat, loc.lng], { icon: icon }).bindPopup(popupHtml).addTo(markers);
+      });
+
+      // 创建带箭头的路线（用多段polyline + 中点箭头标记）
+      var route = null;
+      var arrowMarkers = L.layerGroup();
+      if (routePoints.length >= 2) {
+        route = L.polyline(routePoints, { color: day.color, weight: 3, opacity: 0.7, dashArray: null });
+        // 在每段线的中点放置箭头
+        for (var i = 0; i < routePoints.length - 1; i++) {
+          var p1 = routePoints[i], p2 = routePoints[i+1];
+          var midLat = (p1[0] + p2[0]) / 2;
+          var midLng = (p1[1] + p2[1]) / 2;
+          var angle = Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) * 180 / Math.PI;
+          var arrowIcon = L.divIcon({
+            className: 'l-arrow-icon',
+            html: '<div class="l-arrow-marker" style="background:' + day.color + ';transform:rotate(' + (angle - 90) + 'deg)">▶</div>',
+            iconSize: [20, 20], iconAnchor: [10, 10],
+          });
+          L.marker([midLat, midLng], { icon: arrowIcon, interactive: false }).addTo(arrowMarkers);
+        }
+      }
+
+      lDayLayers[day.day] = { markers: markers, route: route, arrows: arrowMarkers, points: routePoints };
+    });
+
+    // 控件绑定
+    document.getElementById('lFoodToggle').addEventListener('click', function () {
+      lShowFood = !lShowFood;
+      this.classList.toggle('active', lShowFood);
+      this.textContent = lShowFood ? '🍗 美食图层：开' : '🍗 美食图层：关';
+      if (lShowFood) lFoodLayer.addTo(leafletMap); else leafletMap.removeLayer(lFoodLayer);
+    });
+
+    document.getElementById('showAllBtn').addEventListener('click', function () {
+      Object.keys(lDayLayers).forEach(function (key) {
+        var l = lDayLayers[key];
+        if (l.route) leafletMap.removeLayer(l.route);
+        if (l.markers) leafletMap.removeLayer(l.markers);
+        if (l.arrows) leafletMap.removeLayer(l.arrows);
+      });
+      lMarkers.spots.addTo(leafletMap);
+      // 显示所有日期的路线和箭头
+      Object.keys(lDayLayers).forEach(function (key) {
+        var l = lDayLayers[key];
+        if (l.route) l.route.addTo(leafletMap);
+        if (l.arrows) l.arrows.addTo(leafletMap);
+      });
+      lActiveDay = null;
+      var bounds = L.latLngBounds(data.cities.map(function (c) { return [c.lat, c.lng]; }));
+      leafletMap.flyToBounds(bounds.pad(0.15), { duration: 0.6 });
+      updateDayButtons(null);
+    });
+
+    document.querySelectorAll('.l-day-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var idx = parseInt(this.getAttribute('data-day'));
+        Object.keys(lDayLayers).forEach(function (key) {
+          var l = lDayLayers[key];
+          if (l.route) leafletMap.removeLayer(l.route);
+          if (l.markers) leafletMap.removeLayer(l.markers);
+          if (l.arrows) leafletMap.removeLayer(l.arrows);
+        });
+        leafletMap.removeLayer(lMarkers.spots);
+        var layer = lDayLayers[idx];
+        if (layer) {
+          if (layer.route) layer.route.addTo(leafletMap);
+          if (layer.arrows) layer.arrows.addTo(leafletMap);
+          if (layer.markers) layer.markers.addTo(leafletMap);
+          if (layer.points && layer.points.length > 0) {
+            leafletMap.flyToBounds(L.latLngBounds(layer.points).pad(0.3), { duration: 0.6, maxZoom: 15 });
+          }
+        }
+        lActiveDay = idx;
+        updateDayButtons(idx);
+      });
+    });
+  }
+
+  function updateDayButtons(activeIdx) {
+    document.querySelectorAll('.l-day-btn').forEach(function (btn) {
+      btn.classList.toggle('active', parseInt(btn.getAttribute('data-day')) === activeIdx);
+    });
+  }
+
+  function initDayList() {
+    document.getElementById('dayList').innerHTML = data.days.map(function (day) {
+      return '<button class="l-day-btn day-btn" data-day="' + day.day + '" style="--day-color:' + day.color + '"><div class="day-arrow"><i class="fas fa-route"></i></div><div class="day-info"><div class="day-title">D' + day.day + ' ' + day.title + '</div><div class="day-date">' + day.date + ' ' + day.weekday + '</div></div></button>';
+    }).join('');
+  }
+
+  /* ---- Cities ---- */
+  function initCities() {
+    document.getElementById('citiesGrid').innerHTML = data.cities.map(function (c) {
+      var dt = c.days.map(function (d) { return '<span class="city-day-tag" style="background:' + c.color + '22;color:' + c.color + ';">D' + d + '</span>'; }).join('');
+      return '<div class="city-card"><div class="city-card-banner" style="background:' + c.color + '"></div><div class="city-card-body"><div class="city-name" style="color:' + c.color + ';">' + c.name + '</div><div class="city-en">' + c.en + '</div><div class="city-tagline" style="color:' + c.color + ';">' + c.tagline + '</div><div class="city-desc">' + c.description + '</div><div class="city-days">' + dt + '</div></div></div>';
+    }).join('');
+  }
+
+  /* ---- Attractions（城市 tab 由数据驱动生成，支持任意城市数） ---- */
+  function initAttractions() {
+    var spots = data.mapSpots.filter(function (s) { return s.type !== 'station'; });
+    var tabsHtml = '';
+    var detailsHtml = '';
+    data.cities.forEach(function (c, i) {
+      var slug = 'city' + i;
+      tabsHtml += '<button class="city-tab' + (i === 0 ? ' active' : '') + '" data-city="' + slug + '" style="--tab-color:' + c.color + '">' + c.name + '景点</button>';
+      var cards = spots.filter(function (s) { return s.city === c.name; }).map(function (s) {
+        return '<div class="attraction-card" style="border-left-color:' + c.color + '"><div class="att-header"><h4>' + s.emoji + ' ' + s.name + '</h4><div class="att-rating"><i class="fas fa-star"></i> ' + (s.rating || (4.4 + Math.random() * 0.5).toFixed(1)) + '</div></div><p>' + s.desc + '</p><div class="att-info"><span><i class="fas fa-ticket"></i> ' + s.ticket + '</span><span><i class="fas fa-clock"></i> ' + s.hours + '</span></div><a class="att-nav" href="' + amapNav(s.name, s.lng, s.lat) + '" target="_blank" rel="noopener"><i class="fas fa-diamond-turn-right"></i> 高德地图导航</a></div>';
+      }).join('');
+      detailsHtml += '<div class="city-detail' + (i === 0 ? ' active' : '') + '" id="detail-' + slug + '"><div class="attractions-grid">' + cards + '</div></div>';
+    });
+    document.getElementById('cityTabs').innerHTML = tabsHtml;
+    document.getElementById('cityDetails').innerHTML = detailsHtml;
+  }
+
+  /* ---- Itinerary (2×4 GRID) ---- */
+  function initItinerary() {
+    document.getElementById('itineraryTrack').innerHTML = data.days.map(function (day) {
+      var hl = day.highlights.map(function (h) { return '<span class="dc-highlight">' + h + '</span>'; }).join('');
+      return '<div class="day-row"><div class="day-card-h" data-day="' + day.day + '"><div class="dc-header" style="background:' + day.color + ';"><div class="dc-badge">D' + day.day + '</div><div><div class="dc-title">' + day.title + '</div><div class="dc-date">' + day.date + ' ' + day.weekday + '</div></div></div><div class="dc-body"><p class="dc-summary">' + day.summary + '</p><div class="dc-highlights">' + hl + '</div><div class="dc-budget-row"><span class="dc-budget-label">当日预算</span><span class="dc-budget-value">¥' + day.budget.total + '/人</span></div><div class="dc-view-map">查看详细时间表 →</div></div></div></div>';
+    }).join('');
+    document.querySelectorAll('.day-card-h').forEach(function (card) {
+      card.addEventListener('click', function () { openTimeline(parseInt(this.getAttribute('data-day'))); });
+    });
+  }
+
+  function openTimeline(dayIdx) {
+    var day = data.days.find(function (d) { return d.day === dayIdx; });
+    if (!day) return;
+    var tl = day.timeline.map(function (item) { return '<div class="tl-item"><div class="time">' + item.time + '</div><div class="activity">' + item.activity + '</div></div>'; }).join('');
+    var tp = day.tips ? '<div class="tl-tips" style="border-left-color:' + day.color + ';background:' + day.color + '0f;"><strong>贴士：</strong>' + day.tips + '</div>' : '';
+    var lh = '<div class="tl-locs"><div class="tl-locs-title"><i class="fas fa-location-dot" style="color:#00b96b"></i> 当日地点 · 一键高德导航</div><div class="tl-loc-list">' + day.locations.map(function (loc) {
+      return '<a class="tl-loc" href="' + amapNav(loc.name, loc.lng, loc.lat) + '" target="_blank" rel="noopener"><span class="tl-loc-name">' + loc.name + '</span><span class="tl-loc-desc">' + loc.description + '</span><span class="tl-loc-btn"><i class="fas fa-diamond-turn-right"></i> 导航</span></a>';
+    }).join('') + '</div></div>';
+    var bh = '<div class="tl-budget"><div class="tl-budget-item"><div class="label">交通</div><div class="value">¥' + day.budget.transport + '</div></div><div class="tl-budget-item"><div class="label">餐饮</div><div class="value">¥' + day.budget.food + '</div></div><div class="tl-budget-item"><div class="label">门票</div><div class="value">¥' + day.budget.tickets + '</div></div><div class="tl-budget-item"><div class="label">合计</div><div class="value">¥' + day.budget.total + '</div></div></div>';
+    var mh = '<div class="timeline-modal-header" style="background:' + day.color + ';"><h3>Day ' + day.day + ' · ' + day.title + '</h3><button class="timeline-modal-close" id="modalClose">&times;</button></div><div class="timeline-modal-body"><p style="color:var(--text-light);font-size:.88rem;margin-bottom:8px;">' + day.date + ' ' + day.weekday + ' · ' + day.summary + '</p>' + tl + tp + lh + bh + '<button id="viewOnMapBtn" style="margin-top:16px;width:100%;padding:10px;border-radius:8px;border:none;background:' + day.color + ';color:#fff;font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit;">在地图上查看路线 →</button></div>';
+    document.getElementById('timelineModal').innerHTML = mh;
+    document.getElementById('timelineOverlay').classList.add('show');
+    document.getElementById('modalClose').addEventListener('click', closeTimeline);
+    document.getElementById('viewOnMapBtn').addEventListener('click', function () {
+      closeTimeline();
+      // Trigger day selection on map
+      var btn = document.querySelector('.l-day-btn[data-day="' + dayIdx + '"]');
+      if (btn) btn.click();
+      document.getElementById('map-section').scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+  function closeTimeline() { document.getElementById('timelineOverlay').classList.remove('show'); }
+  document.getElementById('timelineOverlay').addEventListener('click', function (e) { if (e.target === this) closeTimeline(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeTimeline(); });
+
+  /* ---- 交通卡片 + 路线流程图（transportLegs 数据驱动，段数任意） ---- */
+  function initTransport() {
+    // 出发地 → 城市… 路线流程 chips
+    var flow = '<span class="city-chip origin-chip">' + (data.meta.origin || '') + '</span>';
+    data.cities.forEach(function (c) {
+      flow += '<i class="fas fa-arrow-right arrow-icon"></i><span class="city-chip" style="background:' + c.color + '15;color:' + c.color + '">' + c.name + '</span>';
+    });
+    document.getElementById('teamRouteFlow').innerHTML = flow;
+
+    var html = '<div class="transport-grid">';
+    (data.transportLegs || []).forEach(function (leg, idx) {
+      var opts = (leg.options || []).map(function (o) {
+        return '<div class="tb-option"><div class="opt-header">' + (o.icon || '🚗') + ' ' + o.type + '<span class="opt-cost" style="margin-left:auto">' + o.cost + '</span></div><div class="opt-detail">' + o.detail + '</div></div>';
+      }).join('');
+      var topColor = leg.to && cityColors[leg.to] ? cityColors[leg.to] : 'var(--water)';
+      if (leg.to === (data.meta.origin || '')) topColor = 'var(--gold)';
+      html += '<div class="transport-block" style="border-top-color:' + topColor + '">' +
+        '<div class="tb-header"><h3>' + leg.icon + ' ' + leg.title + '</h3><div class="tb-route">' + leg.route + '</div></div>' +
+        '<div class="tb-body"><div class="tb-options">' + opts + '</div></div></div>';
+    });
+    html += '</div>';
+    document.getElementById('intercityBody').innerHTML = html;
+  }
+
+  /* ---- Budget ---- */
+  function initBudget() {
+    var cats = data.budget.categories;
+    var maxH = Math.max.apply(null, cats.map(function (c) { return c.high; }));
+    document.getElementById('budgetBody').innerHTML = cats.map(function (c) {
+      return '<tr><td>' + c.item + '</td><td class="budget-range">¥' + c.low + '</td><td class="budget-range">¥' + c.high + '</td><td class="budget-bar-cell"><div class="budget-bar"><div class="budget-bar-fill" style="width:' + ((c.high / maxH) * 100) + '%;"></div></div></td><td style="font-size:.82rem;color:var(--text-light);">' + c.note + '</td></tr>';
+    }).join('');
+    var bn = data.budget.note ? '<div style="font-size:.82rem;color:var(--text-light);margin-bottom:8px;line-height:1.5;">' + data.budget.note + '</div>' : '';
+    document.getElementById('budgetTotal').innerHTML = bn + '<div><div class="label">' + (data.budget.label || '人均总预算') + '</div></div><div class="value">¥' + data.budget.totalLow + ' — ' + data.budget.totalHigh + '</div>';
+  }
+
+  /* ---- Tips + Food ---- */
+  function initTips() {
+    var w = data.weather, p = data.packing;
+    var wc = '<div class="tip-card weather-card"><h3><span class="icon">☀️</span> ' + (w.title || '天气提示') + '</h3><div class="weather-stats"><div class="weather-stat"><div class="label">气温</div><div class="value">' + w.temp + '</div></div><div class="weather-stat"><div class="label">紫外线</div><div class="value">' + w.uv + '</div></div></div><p style="font-size:.85rem;margin-bottom:12px;opacity:.9;">' + w.condition + '</p><ul>' + w.tips.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul></div>';
+    var pc = [{ icon: '🎒', title: '必带物品', items: p.must }, { icon: '🧴', title: '防暑防雨', items: p.sun }, { icon: '💊', title: '药品装备', items: p.medicine }, { icon: '🏨', title: '酒店用品', items: p.hotel }].map(function (c) {
+      return '<div class="tip-card"><h3><span class="icon">' + c.icon + '</span> ' + c.title + '</h3><ul>' + c.items.map(function (i) { return '<li>' + i + '</li>'; }).join('') + '</ul></div>';
+    }).join('');
+    document.getElementById('tipsGrid').innerHTML = wc + pc;
+    document.getElementById('rainyBody').innerHTML = data.rainyDayPlan.map(function (r) { return '<tr><td>' + r.original + '</td><td class="arrow">→</td><td>' + r.alternative + '</td></tr>'; }).join('');
+  }
+
+  function initFood() {
+    var food = data.foodGuide || {};
+    document.getElementById('foodGrid').innerHTML = Object.keys(food).map(function (cityName) {
+      var color = cityColors[cityName] || 'var(--water)';
+      return '<div class="food-card" style="--city-color:' + color + ';"><h3 style="color:' + color + ';">' + cityName + '美食</h3><div class="food-tags">' + food[cityName].map(function (f) { return '<span class="food-tag">' + f + '</span>'; }).join('') + '</div></div>';
+    }).join('');
+  }
+
+  /* ---- Nav ---- */
+  function initNav() {
+    var navToggle = document.getElementById('navToggle');
+    var navLinks = document.getElementById('navLinks');
+    var navIcon = function (open) { navToggle.innerHTML = open ? '<i class="fas fa-xmark"></i>' : '<i class="fas fa-bars"></i>'; };
+    var closeNav = function () { navLinks.classList.remove('open'); navIcon(false); };
+    navToggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      navIcon(navLinks.classList.toggle('open'));
+    });
+    navLinks.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', closeNav); });
+    document.addEventListener('click', function (e) {
+      if (navLinks.classList.contains('open') && !navLinks.contains(e.target) && !navToggle.contains(e.target)) closeNav();
+    });
+    window.addEventListener('scroll', function () {
+      if (window.scrollY > 80) closeNav();
+      var navbar = document.querySelector('.navbar');
+      navbar.style.boxShadow = window.scrollY > 50 ? '0 2px 20px rgba(0,0,0,.08)' : 'none';
+    }, { passive: true });
+  }
+
+  /* ---- Scroll Anim ---- */
+  function initScrollAnim() {
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.section-header, .day-card-h, .city-card, .tip-card, .food-card, .budget-table-wrap, .hsr-table-wrap, .map-section-wrap').forEach(function (el) { el.classList.add('fade-in'); observer.observe(el); });
+  }
+
+  /* ---- Tab Switching（事件委托，适配动态生成的 tab） ---- */
+  function bindTabSwitch() {
+    document.getElementById('cityTabs').addEventListener('click', function (e) {
+      var tab = e.target.closest('.city-tab');
+      if (!tab) return;
+      var city = tab.getAttribute('data-city');
+      document.querySelectorAll('.city-tab').forEach(function (t) { t.classList.toggle('active', t === tab); });
+      document.querySelectorAll('.city-detail').forEach(function (d) { d.classList.toggle('active', d.id === 'detail-' + city); });
+    });
+  }
+
+  /* ---- Init ---- */
+  function init() {
+    applyTheme();
+    initHero();
+    initDayList();
+    initLeafletMap();
+    initCities();
+    initAttractions();
+    bindTabSwitch();
+    initItinerary();
+    initTransport();
+    initBudget();
+    initTips();
+    initFood();
+    initNav();
+    initScrollAnim();
+    setTimeout(function () { if (leafletMap) leafletMap.invalidateSize(); }, 200);
+  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+})();
+</script>
+</body>
+</html>

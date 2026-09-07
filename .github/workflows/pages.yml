@@ -25,7 +25,7 @@ jobs:
       - name: Prepare website
         run: |
           mkdir public
-          cp website/jiangnan-refer.html public/index.html
+          cp website/template.html public/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

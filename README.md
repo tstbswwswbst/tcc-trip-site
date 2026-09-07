@@ -1,41 +1,62 @@
-# 江南行旅 · 江浙沪毕业旅行攻略
+# Travel Guide Site · 把旅行攻略做成一个网站
 
-这是一份可以直接在电脑和手机浏览器中打开的旅行攻略网站，围绕杭州、乌镇、苏州八天行程制作。
+输入出发地、目的地和天数，让 AI 生成一份适合电脑与手机浏览、可以直接分享的单文件旅行攻略网站。
 
-**在线浏览：** [打开江南行旅网站](https://tstbswwswbst.github.io/tcc-trip-site/)
+**[在线体验江南 8 日示例](https://tstbswwswbst.github.io/tcc-trip-site/)** · **[下载已验证的 Skill 包](travel-guide-site.zip)** · **[查看 Skill 使用说明](skill/travel-guide-site/README.md)**
 
-![江南行旅网站首屏](assets/hero.png)
+![完整网站功能演示](assets/site-tour.gif)
 
-## 网站内容
+## 网站能展示什么
 
-- 按天切换的交互地图与游览路线
-- 城际交通、住宿和每日行程
-- 景点、门票与开放时间
-- 雨天备选、美食和出行提醒
-- 人均费用预算
-- 适配电脑和手机浏览器
+- **交互地图**：总览全部点位，也可按 Day 1–Day 8 查看当天路线
+- **地点与导航**：景点、美食、酒店、车站分层显示，点击点位查看详情并跳转高德导航
+- **完整行程**：城际交通、住宿、城市景点、门票、开放时间和逐日时间轴
+- **旅行准备**：天气提示、行李清单、雨天备选和出行提醒
+- **费用预算**：按交通、住宿、餐饮、门票等项目计算区间
+- **多端适配**：桌面端完整展示，手机端可随时查看和导航
 
-![江南行旅交互地图](assets/map.png)
+![地图按天切换、美食图层与点位弹窗](assets/map-demo.gif)
+
+<p align="center">
+  <img src="assets/mobile.png" width="360" alt="手机端页面效果">
+</p>
+
+## 三步生成自己的攻略
+
+1. 下载并解压 [`travel-guide-site.zip`](travel-guide-site.zip)。
+2. 在 **TRAE** 中放入 `.trae/skills/travel-guide-site/`；在 **WorkBuddy** 中通过当前版本的本地 Skill 导入入口选择解压后的文件夹。其他支持 Skill 的 AI 也可以读取 `SKILL.md`。
+3. 对 AI 说：`帮我做一个攻略网站：从成都出发，去大理和丽江玩 6 天，2 个人，预算有限。`
+
+Skill 会引导 AI 完成选点、路线、GCJ-02 坐标、页面生成、自检和公网部署。生成后请按包内说明运行：
+
+```bash
+node scripts/verify.js <生成的html路径>
+```
+
+看到 `PASS` 后再发布。SkillHub.cn 版本准备上架中；当前请以本仓库的 ZIP 为准。
 
 ## 仓库结构
 
 ```text
 .
 ├── website/
-│   └── jiangnan-refer.html   # 网站源文件
-├── assets/
-│   ├── hero.png              # README 首屏预览
-│   └── map.png               # README 地图预览
-├── .github/workflows/
-│   └── pages.yml             # 自动发布网站
+│   └── template.html               # GitHub Pages 正在展示的完整示例
+├── skill/travel-guide-site/        # 已验证的 Skill 源码与说明
+├── assets/                         # README 图片与 GIF
+├── .github/workflows/pages.yml     # 自动发布示例网站
+├── travel-guide-site.zip           # 可直接下载导入的 Skill 包
 ├── README.md
 └── LICENSE
 ```
 
-网站源文件是 [website/jiangnan-refer.html](website/jiangnan-refer.html)。GitHub Pages 发布时会将它作为网站首页，无需在仓库中额外保存一份重复的 `index.html`。
+Skill 目录中的 `README.md` 是下载包内部的使用手册，根目录的 `README.md` 是 GitHub 项目首页，两者用途不同。
 
-## 使用提醒
+## 发布自己的网页
 
-这份页面是具体行程的展示作品。门票、开放时间、车次、价格和地图信息可能变化，实际出行前请通过景区、铁路和地图平台再次确认。
+生成结果是单个 HTML 文件，无需服务器，也无需一直开着电脑。可以使用 Netlify Drop、GitHub Pages 或 Surge 发布，详细步骤见 [`references/deployment.md`](skill/travel-guide-site/references/deployment.md)。
 
-后续经过人工检验的 Skill、教程或其他模板，会再按独立类别加入；当前仓库不包含未经确认的生成工具。
+门票、开放时间、车次、价格和地图点位可能变化，实际出行前请通过景区、铁路和地图平台再次确认。
+
+## License
+
+MIT。你可以使用、修改并分享生成的网站。

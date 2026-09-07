@@ -1,15 +1,19 @@
-name: Deploy demo
+name: Deploy travel website
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
 concurrency:
   group: pages
   cancel-in-progress: true
+
 jobs:
   deploy:
     environment:
@@ -18,13 +22,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: npm test
+      - name: Prepare website
+        run: |
+          mkdir public
+          cp website/jiangnan-refer.html public/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: demo
+          path: public
       - uses: actions/deploy-pages@v4
         id: deployment

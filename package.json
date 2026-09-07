@@ -1,0 +1,12 @@
+{
+  "name": "tcc-trip-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI skill for beautiful, shareable travel websites and companion cards",
+  "scripts": {
+    "build": "node skills/trip-site/scripts/build.mjs skills/trip-site/assets/example.json demo",
+    "test": "node --test tests/build.test.mjs"
+  },
+  "engines": {"node": ">=18"},
+  "license": "MIT"
+}
